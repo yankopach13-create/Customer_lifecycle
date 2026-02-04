@@ -321,14 +321,21 @@ if uploaded_file_1 and uploaded_file_2:
         cohort_clients = set(
             df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
         )
+        # Нормализуем типы периода к строке (как в period_order), чтобы merge не падал по dtype
+        df1_norm = df1.copy()
+        df1_norm[COL_PERIOD_MAIN] = df1_norm[COL_PERIOD_MAIN].astype(str).str.strip()
+        df1_norm[COL_PERIOD_SUB] = df1_norm[COL_PERIOD_SUB].astype(str).str.strip()
+        df2_norm = df2.copy()
+        df2_norm[COL_PERIOD_MAIN] = df2_norm[COL_PERIOD_MAIN].astype(str).str.strip()
+        df2_norm[COL_PERIOD_SUB] = df2_norm[COL_PERIOD_SUB].astype(str).str.strip()
         # Документ 1: период для сопоставления с period_order (добавляем period_rank и period_label_short)
-        df1_with_period = df1.merge(
+        df1_with_period = df1_norm.merge(
             period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
             on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
             how="left",
         )
         df1_with_period["period_label_short"] = df1_with_period["period_rank"].map(period_rank_to_short)
-        df2_with_period = df2.merge(
+        df2_with_period = df2_norm.merge(
             period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
             on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
             how="left",
