@@ -3,6 +3,7 @@
 Streamlit-приложение для загрузки отчётов из Qlik по шаблону.
 """
 
+import re
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -55,12 +56,25 @@ def merge_and_prepare(df1, df2):
     return df, period_order, rank_to_period, first_rank
 
 
-def build_stacked_area(df_plot, x_col, value_col, stack_col, title, value_label, x_order=None):
+def format_period_short(period_main, period_sub):
+    """Форматирует период как 25/1, 25/2 (год/неделя)."""
+    pm, ps = str(period_main).strip(), str(period_sub).strip()
+    year_match = re.search(r"20\d{2}|\d{4}", pm)
+    year_short = year_match.group(0)[-2:] if year_match else (pm[-2:] if len(pm) >= 2 else "")
+    week_match = re.search(r"\d+", ps)
+    week = week_match.group(0) if week_match else ps
+    return f"{year_short}/{week}" if year_short and week else f"{pm} {ps}".strip()
+
+
+def build_stacked_area(
+    df_plot, x_col, value_col, stack_col, title, value_label,
+    x_order=None, show_title=True, xaxis_title=None, xaxis_side="bottom",
+):
     """Строит стековую диаграмму с областями (stacked area)."""
     if df_plot.empty:
         fig = go.Figure()
         fig.add_annotation(text="Нет данных", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-        fig.update_layout(title=title)
+        fig.update_layout(title=dict(text=title or "", x=0.5, xanchor="center") if show_title and title else {})
         return fig
     x_vals = x_order if x_order is not None else df_plot[x_col].unique().tolist()
     stacks = df_plot[stack_col].unique().tolist()
@@ -79,15 +93,21 @@ def build_stacked_area(df_plot, x_col, value_col, stack_col, title, value_label,
                 line=dict(width=0.5),
             )
         )
-    fig.update_layout(
-        title=title,
-        xaxis_title=x_col,
-        yaxis_title=value_label,
+    layout_kw = dict(
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=60, b=50),
         template="plotly_white",
+        yaxis_title=value_label,
     )
+    if show_title and title:
+        layout_kw["title"] = dict(text=title, x=0.5, xanchor="center")
+    if xaxis_title is not None:
+        layout_kw["xaxis_title"] = xaxis_title
+        layout_kw["xaxis"] = dict(side=xaxis_side)
+    else:
+        layout_kw["xaxis_title"] = x_col
+    fig.update_layout(**layout_kw)
     return fig
 
 # --- Конфигурация страницы (для Streamlit Cloud) ---
@@ -190,33 +210,34 @@ if uploaded_file_1 and uploaded_file_2:
         cohort_rank = cohort_ranks[selected_cohort_label]
         cohort_clients = set(first_rank[first_rank == cohort_rank].index)
         df_cohort = df[df[COL_CLIENT].isin(cohort_clients)].copy()
-        period_labels = (
-            period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB]]
-            .apply(lambda r: f"{r[COL_PERIOD_MAIN]} {r[COL_PERIOD_SUB]}".strip(), axis=1)
-            .tolist()
-        )
-        period_rank_to_label = dict(zip(period_order["period_rank"], period_labels))
-        df_cohort["period_label"] = df_cohort["period_rank"].map(period_rank_to_label)
+        period_labels_short = [
+            format_period_short(row[COL_PERIOD_MAIN], row[COL_PERIOD_SUB])
+            for _, row in period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB]].iterrows()
+        ]
+        period_rank_to_short = dict(zip(period_order["period_rank"], period_labels_short))
+        df_cohort["period_label_short"] = df_cohort["period_rank"].map(period_rank_to_short)
 
         if selected_categories:
-            df_plot = df_cohort[df_cohort[COL_CATEGORY].isin(selected_categories)]
+            df_plot = df_cohort[df_cohort[COL_CATEGORY].isin(selected_categories)].copy()
             stack_col = COL_CATEGORY
         else:
             df_plot = df_cohort.copy()
             df_plot["_total"] = "Активные клиенты" if not selected_categories else ""
             stack_col = "_total"
 
+        x_col_short = "period_label_short"
+
         # Верхний график: количество клиентов по периодам (стек по категориям или всего)
         if selected_categories:
             clients_by_period = (
-                df_plot.groupby(["period_label", stack_col])[COL_CLIENT]
+                df_plot.groupby([x_col_short, stack_col])[COL_CLIENT]
                 .nunique()
                 .reset_index()
                 .rename(columns={COL_CLIENT: "clients_count"})
             )
         else:
             clients_by_period = (
-                df_plot.groupby("period_label")[COL_CLIENT]
+                df_plot.groupby(x_col_short)[COL_CLIENT]
                 .nunique()
                 .reset_index()
                 .rename(columns={COL_CLIENT: "clients_count"})
@@ -225,26 +246,29 @@ if uploaded_file_1 and uploaded_file_2:
 
         fig_clients = build_stacked_area(
             clients_by_period,
-            "period_label",
+            x_col_short,
             "clients_count",
             stack_col,
             "Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
             "Количество клиентов",
-            x_order=period_labels,
+            x_order=period_labels_short,
+            show_title=True,
+            xaxis_title="Разрез недель",
+            xaxis_side="top",
         )
         with col_charts:
             st.plotly_chart(fig_clients, use_container_width=True)
 
-        # Нижний график: количество товара по периодам (те же фильтры), того же размера что верхний
+        # Нижний график: количество товара по периодам (те же фильтры), того же размера что верхний, без названия
         if selected_categories:
             qty_by_period = (
-                df_plot.groupby(["period_label", stack_col])[COL_QUANTITY]
+                df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
                 .sum()
                 .reset_index()
             )
         else:
             qty_by_period = (
-                df_plot.groupby("period_label")[COL_QUANTITY]
+                df_plot.groupby(x_col_short)[COL_QUANTITY]
                 .sum()
                 .reset_index()
             )
@@ -252,12 +276,14 @@ if uploaded_file_1 and uploaded_file_2:
 
         fig_qty = build_stacked_area(
             qty_by_period,
-            "period_label",
+            x_col_short,
             COL_QUANTITY,
             stack_col,
+            "",
             "Количество товара",
-            "Количество товара",
-            x_order=period_labels,
+            x_order=period_labels_short,
+            show_title=False,
+            xaxis_title="Разрез недель",
         )
         _, col_chart2 = st.columns([1, 4])
         with col_chart2:
