@@ -69,6 +69,7 @@ def format_period_short(period_main, period_sub):
 def build_stacked_area(
     df_plot, x_col, value_col, stack_col, title, value_label,
     x_order=None, show_title=True, xaxis_title=None, xaxis_side="bottom",
+    margin_override=None,
 ):
     """Строит стековую диаграмму с областями (stacked area)."""
     if df_plot.empty:
@@ -93,10 +94,11 @@ def build_stacked_area(
                 line=dict(width=0.5),
             )
         )
+    margin = margin_override if margin_override is not None else dict(t=60, b=50)
     layout_kw = dict(
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=60, b=50),
+        margin=margin,
         template="plotly_white",
         yaxis_title=value_label,
     )
@@ -253,8 +255,9 @@ if uploaded_file_1 and uploaded_file_2:
             "Количество клиентов",
             x_order=period_labels_short,
             show_title=True,
-            xaxis_title="Разрез недель",
+            xaxis_title="",
             xaxis_side="top",
+            margin_override=dict(t=90, b=20),
         )
         with col_charts:
             st.plotly_chart(fig_clients, use_container_width=True)
@@ -283,7 +286,8 @@ if uploaded_file_1 and uploaded_file_2:
             "Количество товара",
             x_order=period_labels_short,
             show_title=False,
-            xaxis_title="Разрез недель",
+            xaxis_title="",
+            margin_override=dict(t=15, b=50),
         )
         _, col_chart2 = st.columns([1, 4])
         with col_chart2:
