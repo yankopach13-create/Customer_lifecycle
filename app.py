@@ -4,6 +4,91 @@ Streamlit-приложение для загрузки отчётов из Qlik 
 """
 
 import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+
+# Структура документа: столбец 0 — категория/продукт, 1—2 — период, 3 — количество, 4 — код клиента
+COL_CATEGORY = "category"
+COL_PERIOD_MAIN = "period_main"
+COL_PERIOD_SUB = "period_sub"
+COL_QUANTITY = "quantity"
+COL_CLIENT = "client_id"
+
+
+def load_and_normalize(uploaded_file):
+    """Читает Excel и приводит к стандартным столбцам: category, period_main, period_sub, quantity, client_id."""
+    if uploaded_file is None:
+        return None
+    raw = pd.read_excel(uploaded_file, header=0)
+    # Берём первые 5 столбцов по позиции
+    cols = raw.iloc[:, :5].copy()
+    cols.columns = [COL_CATEGORY, COL_PERIOD_MAIN, COL_PERIOD_SUB, COL_QUANTITY, COL_CLIENT]
+    # Убираем строки с пустыми ключевыми полями
+    cols = cols.dropna(subset=[COL_PERIOD_MAIN, COL_CLIENT])
+    cols[COL_QUANTITY] = pd.to_numeric(cols[COL_QUANTITY], errors="coerce").fillna(0).astype(int)
+    cols[COL_CATEGORY] = cols[COL_CATEGORY].astype(str).str.strip()
+    cols[COL_CLIENT] = cols[COL_CLIENT].astype(str).str.strip()
+    return cols
+
+
+def merge_and_prepare(df1, df2):
+    """Объединяет два документа и готовит период, порядок периодов и когорту (первый период клиента)."""
+    df = pd.concat([df1, df2], ignore_index=True)
+    df[COL_PERIOD_MAIN] = df[COL_PERIOD_MAIN].astype(str).str.strip()
+    df[COL_PERIOD_SUB] = df[COL_PERIOD_SUB].astype(str).str.strip()
+    # Порядок периодов для определения когорты
+    period_order = (
+        df[[COL_PERIOD_MAIN, COL_PERIOD_SUB]]
+        .drop_duplicates()
+        .sort_values([COL_PERIOD_MAIN, COL_PERIOD_SUB])
+        .reset_index(drop=True)
+    )
+    period_order["period_rank"] = period_order.index
+    df = df.merge(
+        period_order,
+        on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
+        how="left",
+    )
+    first_rank = df.groupby(COL_CLIENT)["period_rank"].min().rename("first_period_rank")
+    df = df.merge(first_rank, left_on=COL_CLIENT, right_index=True, how="left")
+    rank_to_period = period_order.set_index("period_rank")[[COL_PERIOD_MAIN, COL_PERIOD_SUB]]
+    return df, period_order, rank_to_period, first_rank
+
+
+def build_stacked_area(df_plot, x_col, value_col, stack_col, title, value_label, x_order=None):
+    """Строит стековую диаграмму с областями (stacked area)."""
+    if df_plot.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="Нет данных", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(title=title)
+        return fig
+    x_vals = x_order if x_order is not None else df_plot[x_col].unique().tolist()
+    stacks = df_plot[stack_col].unique().tolist()
+    fig = go.Figure()
+    for s in stacks:
+        sub = df_plot[df_plot[stack_col] == s]
+        sub = sub.set_index(x_col)[value_col].reindex(x_vals).fillna(0)
+        fig.add_trace(
+            go.Scatter(
+                x=x_vals,
+                y=sub.tolist(),
+                name=str(s),
+                mode="lines",
+                fill="tonexty",
+                stackgroup="one",
+                line=dict(width=0.5),
+            )
+        )
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_col,
+        yaxis_title=value_label,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=60, b=50),
+        template="plotly_white",
+    )
+    return fig
 
 # --- Конфигурация страницы (для Streamlit Cloud) ---
 st.set_page_config(
@@ -62,3 +147,119 @@ with col_template:
     )
     if uploaded_file_2:
         st.success(f"Загружен: {uploaded_file_2.name}")
+
+# --- Блок отображения расчётов (графики) — показывается после загрузки обоих документов ---
+if uploaded_file_1 and uploaded_file_2:
+    st.divider()
+    st.subheader("Блок отображения расчётов")
+
+    try:
+        df1 = load_and_normalize(uploaded_file_1)
+        df2 = load_and_normalize(uploaded_file_2)
+    except Exception as e:
+        st.error(f"Ошибка чтения файлов: {e}")
+        df1 = df2 = None
+
+    if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
+        df, period_order, rank_to_period, first_rank = merge_and_prepare(df1, df2)
+        all_categories = sorted(df[COL_CATEGORY].dropna().unique().tolist())
+        cohort_options = []
+        for r in sorted(rank_to_period.index):
+            row = rank_to_period.loc[r]
+            label = f"{row[COL_PERIOD_MAIN]} {row[COL_PERIOD_SUB]}".strip()
+            cohort_options.append((r, label))
+        cohort_labels = [lb for _, lb in cohort_options]
+        cohort_ranks = {lb: r for r, lb in cohort_options}
+
+        # Слева от верхнего графика: кнопка выбора когорты и категории
+        col_filters, col_charts = st.columns([1, 4])
+        with col_filters:
+            selected_cohort_label = st.selectbox(
+                "Когорта",
+                options=cohort_labels,
+                key="cohort_select",
+            )
+            st.caption("Категории (отмеченные участвуют в графиках):")
+            selected_categories = st.multiselect(
+                "Категории",
+                options=all_categories,
+                default=[],
+                key="category_select",
+                label_visibility="collapsed",
+            )
+
+        cohort_rank = cohort_ranks[selected_cohort_label]
+        cohort_clients = set(first_rank[first_rank == cohort_rank].index)
+        df_cohort = df[df[COL_CLIENT].isin(cohort_clients)].copy()
+        period_labels = (
+            period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB]]
+            .apply(lambda r: f"{r[COL_PERIOD_MAIN]} {r[COL_PERIOD_SUB]}".strip(), axis=1)
+            .tolist()
+        )
+        period_rank_to_label = dict(zip(period_order["period_rank"], period_labels))
+        df_cohort["period_label"] = df_cohort["period_rank"].map(period_rank_to_label)
+
+        if selected_categories:
+            df_plot = df_cohort[df_cohort[COL_CATEGORY].isin(selected_categories)]
+            stack_col = COL_CATEGORY
+        else:
+            df_plot = df_cohort.copy()
+            df_plot["_total"] = "Активные клиенты" if not selected_categories else ""
+            stack_col = "_total"
+
+        # Верхний график: количество клиентов по периодам (стек по категориям или всего)
+        if selected_categories:
+            clients_by_period = (
+                df_plot.groupby(["period_label", stack_col])[COL_CLIENT]
+                .nunique()
+                .reset_index()
+                .rename(columns={COL_CLIENT: "clients_count"})
+            )
+        else:
+            clients_by_period = (
+                df_plot.groupby("period_label")[COL_CLIENT]
+                .nunique()
+                .reset_index()
+                .rename(columns={COL_CLIENT: "clients_count"})
+            )
+            clients_by_period[stack_col] = "Активные клиенты"
+
+        fig_clients = build_stacked_area(
+            clients_by_period,
+            "period_label",
+            "clients_count",
+            stack_col,
+            "Количество клиентов",
+            "Количество клиентов",
+            x_order=period_labels,
+        )
+        with col_charts:
+            st.plotly_chart(fig_clients, use_container_width=True)
+
+        # Нижний график: количество товара по периодам (те же фильтры)
+        if selected_categories:
+            qty_by_period = (
+                df_plot.groupby(["period_label", stack_col])[COL_QUANTITY]
+                .sum()
+                .reset_index()
+            )
+        else:
+            qty_by_period = (
+                df_plot.groupby("period_label")[COL_QUANTITY]
+                .sum()
+                .reset_index()
+            )
+            qty_by_period[stack_col] = "Товар"
+
+        fig_qty = build_stacked_area(
+            qty_by_period,
+            "period_label",
+            COL_QUANTITY,
+            stack_col,
+            "Количество товара",
+            "Количество товара",
+            x_order=period_labels,
+        )
+        st.plotly_chart(fig_qty, use_container_width=True)
+    else:
+        st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
