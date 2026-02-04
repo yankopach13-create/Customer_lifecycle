@@ -7,6 +7,7 @@ import re
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 
 # Структура документа: столбец 0 — категория/продукт, 1—2 — период, 3 — количество, 4 — код клиента
@@ -124,11 +125,10 @@ def build_combined_two_charts(
     x_col,
     period_labels_short,
     stack_col,
-    title_row1,
 ):
     """
     Строит одну фигуру с двумя подграфиками (общая ось X).
-    Синхронные зум и hover по оси X.
+    Одинаковые категории — одинаковые цвета в обоих графиках.
     """
     x_vals = period_labels_short
     if clients_by_period.empty and qty_by_period.empty:
@@ -136,18 +136,23 @@ def build_combined_two_charts(
         fig.add_annotation(text="Нет данных", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
 
+    stacks_cl = clients_by_period[stack_col].unique().tolist() if not clients_by_period.empty else []
+    stacks_q = qty_by_period[stack_col].unique().tolist() if not qty_by_period.empty else []
+    all_stacks = list(dict.fromkeys(stacks_cl + stacks_q))  # порядок: сначала из клиентов, потом товар
+    palette = px.colors.qualitative.Plotly
+    color_map = {s: palette[i % len(palette)] for i, s in enumerate(all_stacks)}
+
     fig = make_subplots(
         rows=2,
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
         row_heights=[1, 1],
-        subplot_titles=(title_row1, ""),
+        subplot_titles=("", ""),
     )
 
     # Верхний график: клиенты
     if not clients_by_period.empty:
-        stacks_cl = clients_by_period[stack_col].unique().tolist()
         for s in stacks_cl:
             sub = clients_by_period[clients_by_period[stack_col] == s]
             sub = sub.set_index(x_col)["clients_count"].reindex(x_vals).fillna(0)
@@ -159,15 +164,14 @@ def build_combined_two_charts(
                     mode="lines",
                     fill="tonexty",
                     stackgroup="one",
-                    line=dict(width=0.5),
+                    line=dict(width=0.5, color=color_map.get(s, None)),
                 ),
                 row=1,
                 col=1,
             )
 
-    # Нижний график: товар
+    # Нижний график: товар (те же цвета по категориям)
     if not qty_by_period.empty:
-        stacks_q = qty_by_period[stack_col].unique().tolist()
         for s in stacks_q:
             sub = qty_by_period[qty_by_period[stack_col] == s]
             sub = sub.set_index(x_col)[COL_QUANTITY].reindex(x_vals).fillna(0)
@@ -179,7 +183,7 @@ def build_combined_two_charts(
                     mode="lines",
                     fill="tonexty",
                     stackgroup="two",
-                    line=dict(width=0.5),
+                    line=dict(width=0.5, color=color_map.get(s, None)),
                 ),
                 row=2,
                 col=1,
@@ -192,14 +196,13 @@ def build_combined_two_charts(
         template="plotly_white",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=70, b=40, l=50, r=30),
+        margin=dict(t=40, b=40, l=50, r=120),
     )
-    # Ось X общая: подписи сверху у первого подграфика
     fig.update_xaxes(title_text="", side="top", row=1, col=1)
     fig.update_xaxes(title_text="", row=2, col=1)
-    fig.update_yaxes(title_text="Количество клиентов", row=1, col=1)
-    fig.update_yaxes(title_text="Количество товара", row=2, col=1)
-    # Спайк-линия по x при наведении (общая ось X — линия видна по всей высоте)
+    # Подписи осей Y справа от графика
+    fig.update_yaxes(title_text="Количество клиентов", row=1, col=1, side="right")
+    fig.update_yaxes(title_text="Количество товара", row=2, col=1, side="right")
     fig.update_xaxes(showspikes=True, spikemode="across+marker", spikecolor="gray", spikethickness=1)
     return fig
 
@@ -383,7 +386,6 @@ if uploaded_file_1 and uploaded_file_2:
             x_col_short,
             period_labels_short,
             stack_col,
-            title_row1="Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
         )
         st.plotly_chart(fig_combined, use_container_width=True)
     else:
