@@ -277,7 +277,15 @@ if uploaded_file_1 and uploaded_file_2:
         st.markdown(f"### Анализируемый продукт/категория: :blue[{category_label}]")
 
         df, period_order, rank_to_period, _ = merge_and_prepare(df1, df2)
-        all_categories = sorted(df[COL_CATEGORY].dropna().unique().tolist())
+        period_labels_short = [
+            format_period_short(row[COL_PERIOD_MAIN], row[COL_PERIOD_SUB])
+            for _, row in period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB]].iterrows()
+        ]
+        period_rank_to_short = dict(zip(period_order["period_rank"], period_labels_short))
+        categories_from_doc2 = sorted(df2[COL_CATEGORY].dropna().unique().tolist())
+        categories_from_doc1_set = set(categories_from_doc1)
+        # В списке категорий: сначала из документа 1 (анализируемая), потом из документа 2 (другие)
+        all_categories = categories_from_doc1 + [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
         cohort_options = []
         for r in sorted(rank_to_period.index):
             row = rank_to_period.loc[r]
@@ -296,7 +304,8 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            st.caption("Категории (активность когорты из документа 1 в выбранных категориях):")
+            st.caption("Категории (активность когорты в выбранных категориях):")
+            st.caption(":blue[По умолчанию выбрана категория из документа 1.]")
             selected_categories = st.multiselect(
                 "Категории",
                 options=all_categories,
@@ -312,26 +321,50 @@ if uploaded_file_1 and uploaded_file_2:
         cohort_clients = set(
             df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
         )
-        df_cohort = df[df[COL_CLIENT].isin(cohort_clients)].copy()
-        period_labels_short = [
-            format_period_short(row[COL_PERIOD_MAIN], row[COL_PERIOD_SUB])
-            for _, row in period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB]].iterrows()
-        ]
-        period_rank_to_short = dict(zip(period_order["period_rank"], period_labels_short))
-        df_cohort["period_label_short"] = df_cohort["period_rank"].map(period_rank_to_short)
-
-        if selected_categories:
-            df_plot = df_cohort[df_cohort[COL_CATEGORY].isin(selected_categories)].copy()
+        # Документ 1: период для сопоставления с period_order (добавляем period_rank и period_label_short)
+        df1_with_period = df1.merge(
+            period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
+            on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
+            how="left",
+        )
+        df1_with_period["period_label_short"] = df1_with_period["period_rank"].map(period_rank_to_short)
+        df2_with_period = df2.merge(
+            period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
+            on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
+            how="left",
+        )
+        df2_with_period["period_label_short"] = df2_with_period["period_rank"].map(period_rank_to_short)
+        # Данные по анализируемой категории — из документа 1; по другим категориям — из документа 2
+        selected_in_doc1 = [c for c in selected_categories if c in categories_from_doc1_set]
+        selected_in_doc2 = [c for c in selected_categories if c in set(categories_from_doc2)]
+        parts = []
+        if selected_in_doc1:
+            parts.append(
+                df1_with_period[
+                    df1_with_period[COL_CLIENT].isin(cohort_clients)
+                    & df1_with_period[COL_CATEGORY].isin(selected_in_doc1)
+                ].copy()
+            )
+        if selected_in_doc2:
+            parts.append(
+                df2_with_period[
+                    df2_with_period[COL_CLIENT].isin(cohort_clients)
+                    & df2_with_period[COL_CATEGORY].isin(selected_in_doc2)
+                ].copy()
+            )
+        if parts:
+            df_plot = pd.concat(parts, ignore_index=True)
             stack_col = COL_CATEGORY
         else:
-            df_plot = df_cohort.copy()
-            df_plot["_total"] = "Активные клиенты" if not selected_categories else ""
+            # Ничего не выбрано — показываем активность когорты только по документу 1
+            df_plot = df1_with_period[df1_with_period[COL_CLIENT].isin(cohort_clients)].copy()
+            df_plot["_total"] = "Активные клиенты"
             stack_col = "_total"
 
         x_col_short = "period_label_short"
 
         # Верхний график: количество клиентов по периодам (стек по категориям или всего)
-        if selected_categories:
+        if stack_col == COL_CATEGORY:
             clients_by_period = (
                 df_plot.groupby([x_col_short, stack_col])[COL_CLIENT]
                 .nunique()
@@ -348,7 +381,7 @@ if uploaded_file_1 and uploaded_file_2:
             clients_by_period[stack_col] = "Активные клиенты"
 
         # Нижний график: данные по количеству товара (те же фильтры)
-        if selected_categories:
+        if stack_col == COL_CATEGORY:
             qty_by_period = (
                 df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
                 .sum()
