@@ -7,6 +7,7 @@ import re
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Структура документа: столбец 0 — категория/продукт, 1—2 — период, 3 — количество, 4 — код клиента
 COL_CATEGORY = "category"
@@ -111,6 +112,97 @@ def build_stacked_area(
         layout_kw["xaxis_title"] = x_col
     fig.update_layout(**layout_kw)
     return fig
+
+
+# Высота каждого подграфика в объединённой фигуре (пиксели)
+COMBINED_CHART_ROW_HEIGHT = 200
+
+
+def build_combined_two_charts(
+    clients_by_period,
+    qty_by_period,
+    x_col,
+    period_labels_short,
+    stack_col,
+    title_row1,
+):
+    """
+    Строит одну фигуру с двумя подграфиками (общая ось X).
+    Синхронные зум и hover по оси X.
+    """
+    x_vals = period_labels_short
+    if clients_by_period.empty and qty_by_period.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="Нет данных", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        row_heights=[1, 1],
+        subplot_titles=(title_row1, ""),
+    )
+
+    # Верхний график: клиенты
+    if not clients_by_period.empty:
+        stacks_cl = clients_by_period[stack_col].unique().tolist()
+        for s in stacks_cl:
+            sub = clients_by_period[clients_by_period[stack_col] == s]
+            sub = sub.set_index(x_col)["clients_count"].reindex(x_vals).fillna(0)
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals,
+                    y=sub.tolist(),
+                    name=str(s),
+                    mode="lines",
+                    fill="tonexty",
+                    stackgroup="one",
+                    line=dict(width=0.5),
+                ),
+                row=1,
+                col=1,
+            )
+
+    # Нижний график: товар
+    if not qty_by_period.empty:
+        stacks_q = qty_by_period[stack_col].unique().tolist()
+        for s in stacks_q:
+            sub = qty_by_period[qty_by_period[stack_col] == s]
+            sub = sub.set_index(x_col)[COL_QUANTITY].reindex(x_vals).fillna(0)
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals,
+                    y=sub.tolist(),
+                    name=str(s),
+                    mode="lines",
+                    fill="tonexty",
+                    stackgroup="two",
+                    line=dict(width=0.5),
+                ),
+                row=2,
+                col=1,
+            )
+
+    total_height = COMBINED_CHART_ROW_HEIGHT * 2
+    fig.update_layout(
+        height=total_height,
+        hovermode="x unified",
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=70, b=40, l=50, r=30),
+    )
+    # Ось X общая: подписи сверху у первого подграфика
+    fig.update_xaxes(title_text="", side="top", row=1, col=1)
+    fig.update_xaxes(title_text="", row=2, col=1)
+    fig.update_yaxes(title_text="Количество клиентов", row=1, col=1)
+    fig.update_yaxes(title_text="Количество товара", row=2, col=1)
+    # Спайк-линия по x при наведении (общая ось X — линия видна по всей высоте)
+    fig.update_xaxes(showspikes=True, spikemode="across+marker", spikecolor="gray", spikethickness=1)
+    return fig
+
 
 # --- Конфигурация страницы (для Streamlit Cloud) ---
 st.set_page_config(
@@ -246,23 +338,7 @@ if uploaded_file_1 and uploaded_file_2:
             )
             clients_by_period[stack_col] = "Активные клиенты"
 
-        fig_clients = build_stacked_area(
-            clients_by_period,
-            x_col_short,
-            "clients_count",
-            stack_col,
-            "Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
-            "Количество клиентов",
-            x_order=period_labels_short,
-            show_title=True,
-            xaxis_title="",
-            xaxis_side="top",
-            margin_override=dict(t=90, b=20),
-        )
-        with col_charts:
-            st.plotly_chart(fig_clients, use_container_width=True)
-
-        # Нижний график: количество товара по периодам (те же фильтры), того же размера что верхний, без названия
+        # Нижний график: данные по количеству товара (те же фильтры)
         if selected_categories:
             qty_by_period = (
                 df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
@@ -277,20 +353,15 @@ if uploaded_file_1 and uploaded_file_2:
             )
             qty_by_period[stack_col] = "Товар"
 
-        fig_qty = build_stacked_area(
+        fig_combined = build_combined_two_charts(
+            clients_by_period,
             qty_by_period,
             x_col_short,
-            COL_QUANTITY,
+            period_labels_short,
             stack_col,
-            "",
-            "Количество товара",
-            x_order=period_labels_short,
-            show_title=False,
-            xaxis_title="",
-            margin_override=dict(t=15, b=50),
+            title_row1="Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
         )
-        _, col_chart2 = st.columns([1, 4])
-        with col_chart2:
-            st.plotly_chart(fig_qty, use_container_width=True)
+        with col_charts:
+            st.plotly_chart(fig_combined, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
