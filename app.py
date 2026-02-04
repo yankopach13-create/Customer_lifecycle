@@ -170,7 +170,7 @@ def build_combined_two_charts(
                 col=1,
             )
 
-    # Нижний график: товар (те же цвета по категориям)
+    # Нижний график: товар (те же цвета по категориям), легенду не дублируем
     if not qty_by_period.empty:
         for s in stacks_q:
             sub = qty_by_period[qty_by_period[stack_col] == s]
@@ -184,6 +184,7 @@ def build_combined_two_charts(
                     fill="tonexty",
                     stackgroup="two",
                     line=dict(width=0.5, color=color_map.get(s, None)),
+                    showlegend=False,
                 ),
                 row=2,
                 col=1,
@@ -273,9 +274,9 @@ if uploaded_file_1 and uploaded_file_2:
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
         categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
         category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
-        st.subheader(f"Анализируемый продукт/категория: {category_label}")
+        st.markdown(f"### Анализируемый продукт/категория: :blue[{category_label}]")
 
-        df, period_order, rank_to_period, first_rank = merge_and_prepare(df1, df2)
+        df, period_order, rank_to_period, _ = merge_and_prepare(df1, df2)
         all_categories = sorted(df[COL_CATEGORY].dropna().unique().tolist())
         cohort_options = []
         for r in sorted(rank_to_period.index):
@@ -295,17 +296,22 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            st.caption("Категории (отмеченные участвуют в графиках):")
+            st.caption("Категории (активность когорты из документа 1 в выбранных категориях):")
             selected_categories = st.multiselect(
                 "Категории",
                 options=all_categories,
-                default=[],
+                default=categories_from_doc1,
                 key="category_select",
                 label_visibility="collapsed",
             )
 
+        # Когорта = клиенты из документа 1, купившие на выбранной неделе (в документе 1)
         cohort_rank = cohort_ranks[selected_cohort_label]
-        cohort_clients = set(first_rank[first_rank == cohort_rank].index)
+        pm, ps = rank_to_period.loc[cohort_rank, COL_PERIOD_MAIN], rank_to_period.loc[cohort_rank, COL_PERIOD_SUB]
+        pm, ps = str(pm).strip(), str(ps).strip()
+        cohort_clients = set(
+            df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
+        )
         df_cohort = df[df[COL_CLIENT].isin(cohort_clients)].copy()
         period_labels_short = [
             format_period_short(row[COL_PERIOD_MAIN], row[COL_PERIOD_SUB])
