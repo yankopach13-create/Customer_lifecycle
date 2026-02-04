@@ -135,9 +135,6 @@ with col_template:
         key="qlik_upload_1",
         label_visibility="collapsed",
     )
-    if uploaded_file_1:
-        st.success(f"Загружен: {uploaded_file_1.name}")
-
     st.caption("Документ 2 — выгрузка по альтернативным категориям:")
     uploaded_file_2 = st.file_uploader(
         "Документ 2",
@@ -145,14 +142,10 @@ with col_template:
         key="qlik_upload_2",
         label_visibility="collapsed",
     )
-    if uploaded_file_2:
-        st.success(f"Загружен: {uploaded_file_2.name}")
 
 # --- Блок отображения расчётов (графики) — показывается после загрузки обоих документов ---
 if uploaded_file_1 and uploaded_file_2:
     st.divider()
-    st.subheader("Блок отображения расчётов")
-
     try:
         df1 = load_and_normalize(uploaded_file_1)
         df2 = load_and_normalize(uploaded_file_2)
@@ -161,6 +154,10 @@ if uploaded_file_1 and uploaded_file_2:
         df1 = df2 = None
 
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
+        categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
+        category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
+        st.subheader(f"Анализируемый продукт/категория: {category_label}")
+
         df, period_order, rank_to_period, first_rank = merge_and_prepare(df1, df2)
         all_categories = sorted(df[COL_CATEGORY].dropna().unique().tolist())
         cohort_options = []
@@ -174,10 +171,12 @@ if uploaded_file_1 and uploaded_file_2:
         # Слева от верхнего графика: кнопка выбора когорты и категории
         col_filters, col_charts = st.columns([1, 4])
         with col_filters:
+            st.caption("Выберите когорту для анализа.")
             selected_cohort_label = st.selectbox(
                 "Когорта",
                 options=cohort_labels,
                 key="cohort_select",
+                label_visibility="collapsed",
             )
             st.caption("Категории (отмеченные участвуют в графиках):")
             selected_categories = st.multiselect(
@@ -229,14 +228,14 @@ if uploaded_file_1 and uploaded_file_2:
             "period_label",
             "clients_count",
             stack_col,
-            "Количество клиентов",
+            "Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
             "Количество клиентов",
             x_order=period_labels,
         )
         with col_charts:
             st.plotly_chart(fig_clients, use_container_width=True)
 
-        # Нижний график: количество товара по периодам (те же фильтры)
+        # Нижний график: количество товара по периодам (те же фильтры), того же размера что верхний
         if selected_categories:
             qty_by_period = (
                 df_plot.groupby(["period_label", stack_col])[COL_QUANTITY]
@@ -260,6 +259,8 @@ if uploaded_file_1 and uploaded_file_2:
             "Количество товара",
             x_order=period_labels,
         )
-        st.plotly_chart(fig_qty, use_container_width=True)
+        _, col_chart2 = st.columns([1, 4])
+        with col_chart2:
+            st.plotly_chart(fig_qty, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
