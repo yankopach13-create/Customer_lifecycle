@@ -115,7 +115,7 @@ def build_stacked_area(
 
 
 # Высота каждого подграфика в объединённой фигуре (пиксели)
-COMBINED_CHART_ROW_HEIGHT = 200
+COMBINED_CHART_ROW_HEIGHT = 260
 
 
 def build_combined_two_charts(
@@ -282,8 +282,8 @@ if uploaded_file_1 and uploaded_file_2:
         cohort_labels = [lb for _, lb in cohort_options]
         cohort_ranks = {lb: r for r, lb in cohort_options}
 
-        # Слева от верхнего графика: кнопка выбора когорты и категории
-        col_filters, col_charts = st.columns([1, 4])
+        # Верхняя строка: слева — выбор когорты и категорий, справа — таблица данных
+        col_filters, col_table = st.columns([1, 3])
         with col_filters:
             st.caption("Выберите когорту для анализа.")
             selected_cohort_label = st.selectbox(
@@ -353,6 +353,30 @@ if uploaded_file_1 and uploaded_file_2:
             )
             qty_by_period[stack_col] = "Товар"
 
+        # Таблица справа: строки — клиенты / товар, столбцы — недели
+        clients_per_period = (
+            df_plot.groupby(x_col_short)[COL_CLIENT]
+            .nunique()
+            .reindex(period_labels_short)
+            .fillna(0)
+            .astype(int)
+        )
+        qty_per_period = (
+            df_plot.groupby(x_col_short)[COL_QUANTITY]
+            .sum()
+            .reindex(period_labels_short)
+            .fillna(0)
+            .astype(int)
+        )
+        table_data = pd.DataFrame(
+            [clients_per_period.values, qty_per_period.values],
+            index=["Количество клиентов", "Количество товара"],
+            columns=period_labels_short,
+        )
+        with col_table:
+            st.dataframe(table_data, use_container_width=True, height=120)
+
+        # График под блоком выбора и таблицы — на всю ширину, выше
         fig_combined = build_combined_two_charts(
             clients_by_period,
             qty_by_period,
@@ -361,7 +385,6 @@ if uploaded_file_1 and uploaded_file_2:
             stack_col,
             title_row1="Динамика активных клиентов выбранной когорты анализируемого продукта/категории",
         )
-        with col_charts:
-            st.plotly_chart(fig_combined, use_container_width=True)
+        st.plotly_chart(fig_combined, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
