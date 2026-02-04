@@ -20,13 +20,19 @@ st.divider()
 col_instruction, col_template = st.columns([1, 1])
 
 with col_instruction:
-    st.subheader("Инструкция")
+    st.subheader("Инструкция к загрузке 1 документа")
     st.markdown("""
     1. Зайдите в Qlik, раздел «Анализ чеков», лист «Конструктор».
-    2. Отберите анализируемые продукты в одном из разрезов Группа1 / Группа2 / Группа3 / Группа4.
+    2. Отберите анализируемые продукты/категорию в одном из разрезов Группа1 / Группа2 / Группа3 / Группа4.
     3. Отберите анализируемый период и разрез (год–месяц или год–неделя).
     4. Выведите отчёт по шаблону справа.
-    5. Скачайте документ в Qlik и загрузите в ячейку справа.
+    5. Скачайте документ в Qlik и загрузите в ячейку снизу.
+    """)
+    st.markdown("---")
+    st.subheader("Инструкция к загрузке 2 документа")
+    st.markdown("""
+    1. Перейдите на лист «Продажи» и отберите клиентов анализируемого периода и продукта/категории.
+    2. Выберите альтернативные категории и выведите отчёт по шаблону справа на листе «Конструктор».
     """)
 
 with col_template:
@@ -36,13 +42,22 @@ with col_template:
     except FileNotFoundError:
         st.warning("Изображение шаблона не найдено. Убедитесь, что файл `qlik_template_categories.png` в корне проекта.")
     st.markdown("---")
-    st.caption("Загрузите выгруженный из Qlik документ (Excel):")
-    uploaded_file = st.file_uploader(
-        "Выберите файл",
+    st.caption("Документ 1 — выгрузка из листа «Конструктор»:")
+    uploaded_file_1 = st.file_uploader(
+        "Документ 1",
         type=["xlsx", "xls"],
-        key="qlik_upload",
+        key="qlik_upload_1",
         label_visibility="collapsed",
     )
-    if uploaded_file:
-        st.success(f"Загружен файл: **{uploaded_file.name}**")
-        # Здесь можно добавить обработку файла (чтение, превью и т.д.)
+    if uploaded_file_1:
+        st.success(f"Загружен: {uploaded_file_1.name}")
+
+    st.caption("Документ 2 — выгрузка по альтернативным категориям:")
+    uploaded_file_2 = st.file_uploader(
+        "Документ 2",
+        type=["xlsx", "xls"],
+        key="qlik_upload_2",
+        label_visibility="collapsed",
+    )
+    if uploaded_file_2:
+        st.success(f"Загружен: {uploaded_file_2.name}")
