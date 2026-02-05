@@ -439,8 +439,9 @@ if uploaded_file_1 and uploaded_file_2:
             .fillna(0)
             .astype(int)
         )
+        # Строки = категории, столбцы = недели (периоды)
         clients_by_cat = (
-            df_plot.groupby([x_col_short, stack_col])[COL_CLIENT]
+            df_plot.groupby([stack_col, x_col_short])[COL_CLIENT]
             .nunique()
             .unstack(fill_value=0)
             .reindex(columns=period_labels_short)
@@ -448,7 +449,7 @@ if uploaded_file_1 and uploaded_file_2:
             .astype(int)
         )
         qty_by_cat = (
-            df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
+            df_plot.groupby([stack_col, x_col_short])[COL_QUANTITY]
             .sum()
             .unstack(fill_value=0)
             .reindex(columns=period_labels_short)
