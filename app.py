@@ -612,7 +612,7 @@ if uploaded_file_1 and uploaded_file_2:
         period_word = "месяцев" if is_months else "недель"
 
         st.markdown('<div id="sales-block-wrap">', unsafe_allow_html=True)
-        col_cohorts_block, col_analyzed_block, col_params, col_btn = st.columns([1, 1, 1, 1])
+        col_cohorts_block, col_analyzed_block, col_params = st.columns([1, 1, 1])
         with col_cohorts_block:
             cohort_start_block = st.selectbox(
                 "С когорты",
@@ -643,42 +643,18 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="block_k_weeks",
             )
-        with col_btn:
-            apply_block = st.button("Применить к расчёту", key="block_apply")
-        st.markdown(
-            """<style>
-            #sales-block-wrap .stButton > button {
-                background: #e9ecef !important;
-                color: #495057 !important;
-                border: 1px solid #dee2e6 !important;
-                border-radius: 8px !important;
-                font-weight: 700 !important;
-                font-size: 1.1rem !important;
-                padding: 0.75rem 1.5rem !important;
-                min-height: 3rem !important;
-                width: 100% !important;
-            }
-            #sales-block-wrap .stButton > button:hover {
-                background: #dee2e6 !important;
-                border-color: #ced4da !important;
-                color: #495057 !important;
-            }
-            </style>""",
-            unsafe_allow_html=True,
-        )
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if apply_block:
-            idx_start = cohort_labels.index(cohort_start_block)
-            idx_end = cohort_labels.index(cohort_end_block)
-            if idx_start <= idx_end:
-                cohorts_to_use = cohort_labels[idx_start : idx_end + 1]
-            else:
-                cohorts_to_use = cohort_labels[idx_end : idx_start + 1]
+        idx_start = cohort_labels.index(cohort_start_block)
+        idx_end = cohort_labels.index(cohort_end_block)
+        if idx_start <= idx_end:
+            cohorts_to_use = cohort_labels[idx_start : idx_end + 1]
+        else:
+            cohorts_to_use = cohort_labels[idx_end : idx_start + 1]
 
-            if not cohorts_to_use:
-                st.caption("Выберите хотя бы одну когорту для расчёта.")
-            else:
+        if not cohorts_to_use:
+            st.caption("Выберите хотя бы одну когорту для расчёта.")
+        else:
                 # Клиенты выбранных когорт (нормализованный id)
                 cohort_clients_block = set()
                 for lb in cohorts_to_use:
@@ -749,11 +725,12 @@ if uploaded_file_1 and uploaded_file_2:
                         f"""
                         <style>
                         .block-result-box {{ background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
+                        .block-result-box .block-period-caption {{ font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }}
                         .block-result-box .block-num {{ color: #e85d04; font-size: 1.25rem; font-weight: bold; }}
                         .block-result-box .block-product {{ font-style: italic; background: #e9ecef; color: #495057; padding: 0.1em 0.35em; border-radius: 4px; }}
                         </style>
                         <div class="block-result-box">
-                        <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem; opacity: 0.95;">{period_range_caption}</p>
+                        <span class="block-period-caption">{period_range_caption}</span>
                         <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
                         <p style="margin: 0; font-size: 0.95rem;">{ref_html}</p>
                         </div>
