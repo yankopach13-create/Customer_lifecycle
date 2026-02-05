@@ -609,13 +609,23 @@ if uploaded_file_1 and uploaded_file_2:
                 key="block_k_weeks",
             )
         with col_btn:
-            st.markdown("<div style='min-height: 2.25rem;'></div>")
             apply_block = st.button("Применить к расчёту", key="block_apply")
         st.markdown(
             """<style>
-            #sales-block-wrap [data-testid="column"] { align-items: stretch; }
-            #sales-block-wrap .stButton > button { background-color: #7B2CBF !important; color: white !important; border: none !important; }
-            #sales-block-wrap .stButton > button:hover { background-color: #6A2A9E !important; color: white !important; }
+            #sales-block-wrap .stButton > button {
+                background: linear-gradient(180deg, #5a189a 0%, #7b2cbf 100%) !important;
+                color: white !important;
+                border: 1px solid #9d4edd !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                padding: 0.5rem 1rem !important;
+                box-shadow: 0 2px 4px rgba(123, 44, 191, 0.3) !important;
+            }
+            #sales-block-wrap .stButton > button:hover {
+                background: linear-gradient(180deg, #7b2cbf 0%, #9d4edd 100%) !important;
+                border-color: #c77dff !important;
+                box-shadow: 0 4px 8px rgba(123, 44, 191, 0.4) !important;
+            }
             </style>""",
             unsafe_allow_html=True,
         )
@@ -688,18 +698,19 @@ if uploaded_file_1 and uploaded_file_2:
                     expected_int = int(round(expected))
                     anchor_name = category_label
                     analyzed_names = ", ".join(selected_categories_block) if selected_categories_block else "анализируемого продукта"
-                    # Прозрачно-фиолетовый фон, белый текст; цифры — чёрные и на 2 размера больше
+                    # Цифры — оранжевые; названия товаров — курсив и визуально выделены
                     main_html = (
-                        f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. {anchor_name} в течении '
+                        f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
                         f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
-                        f'<span class="block-num">{expected_int}</span> ед. {analyzed_names}.'
+                        f'<span class="block-num">{expected_int}</span> ед. <span class="block-product">{analyzed_names}</span>.'
                     )
                     ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
                     st.markdown(
                         f"""
                         <style>
                         .block-result-box {{ background: rgba(123, 44, 191, 0.35); border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
-                        .block-result-box .block-num {{ color: black; font-size: 1.25rem; font-weight: bold; }}
+                        .block-result-box .block-num {{ color: #e85d04; font-size: 1.25rem; font-weight: bold; }}
+                        .block-result-box .block-product {{ font-style: italic; background: rgba(255, 255, 255, 0.12); padding: 0.1em 0.35em; border-radius: 4px; }}
                         </style>
                         <div class="block-result-box">
                         <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
