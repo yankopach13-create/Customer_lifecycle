@@ -348,11 +348,15 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            # Шире красные чипы с выбранными категориями, чтобы влезало больше названия
+            # Красные чипы: одна строка, шире, скруглённые грани
             st.markdown(
                 """<style>
-                span[data-baseweb="tag"] { min-width: 320px; max-width: 580px; white-space: normal; overflow: visible; }
-                span[data-baseweb="tag"] span { white-space: normal; text-overflow: clip; }
+                span[data-baseweb="tag"] {
+                    min-width: 320px; max-width: 580px;
+                    white-space: nowrap;
+                    border-radius: 12px;
+                }
+                span[data-baseweb="tag"] span { white-space: nowrap; }
                 </style>""",
                 unsafe_allow_html=True,
             )
