@@ -207,7 +207,7 @@ def build_combined_two_charts(
         margin=dict(t=40, b=40, l=50, r=120),
         hoverlabel=dict(
             namelength=-1,
-            font=dict(size=12),
+            font=dict(size=12, color="black"),
             bgcolor="white",
             bordercolor="gray",
         ),
@@ -424,28 +424,57 @@ if uploaded_file_1 and uploaded_file_2:
             )
             qty_by_period[stack_col] = "Товар"
 
-        # Таблица справа: строки — клиенты / товар, столбцы — недели
-        clients_per_period = (
+        # Две таблицы: левая — клиенты, правая — товар (1-я строка итого, далее разрез по категориям)
+        clients_total = (
             df_plot.groupby(x_col_short)[COL_CLIENT]
             .nunique()
             .reindex(period_labels_short)
             .fillna(0)
             .astype(int)
         )
-        qty_per_period = (
+        qty_total = (
             df_plot.groupby(x_col_short)[COL_QUANTITY]
             .sum()
             .reindex(period_labels_short)
             .fillna(0)
             .astype(int)
         )
-        table_data = pd.DataFrame(
-            [clients_per_period.values, qty_per_period.values],
-            index=["Количество клиентов", "Количество товара"],
+        clients_by_cat = (
+            df_plot.groupby([x_col_short, stack_col])[COL_CLIENT]
+            .nunique()
+            .unstack(fill_value=0)
+            .reindex(columns=period_labels_short)
+            .fillna(0)
+            .astype(int)
+        )
+        qty_by_cat = (
+            df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
+            .sum()
+            .unstack(fill_value=0)
+            .reindex(columns=period_labels_short)
+            .fillna(0)
+            .astype(int)
+        )
+        rows_clients = ["Итого клиентов когорты"] + clients_by_cat.index.tolist()
+        table_clients = pd.DataFrame(
+            [clients_total.values] + [clients_by_cat.loc[c].values for c in clients_by_cat.index],
+            index=rows_clients,
+            columns=period_labels_short,
+        )
+        rows_qty = ["Итого товаров"] + qty_by_cat.index.tolist()
+        table_qty = pd.DataFrame(
+            [qty_total.values] + [qty_by_cat.loc[c].values for c in qty_by_cat.index],
+            index=rows_qty,
             columns=period_labels_short,
         )
         with col_table:
-            st.dataframe(table_data, use_container_width=True, height=120)
+            col_tbl_left, col_tbl_right = st.columns(2)
+            with col_tbl_left:
+                st.caption("Количество клиентов")
+                st.dataframe(table_clients, use_container_width=True, height=120)
+            with col_tbl_right:
+                st.caption("Количество товара")
+                st.dataframe(table_qty, use_container_width=True, height=120)
 
         # График под блоком выбора и таблицы — на всю ширину, выше
         fig_combined = build_combined_two_charts(
