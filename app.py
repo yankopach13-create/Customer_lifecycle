@@ -205,6 +205,12 @@ def build_combined_two_charts(
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=50, r=120),
+        hoverlabel=dict(
+            namelength=-1,
+            font=dict(size=12),
+            bgcolor="white",
+            bordercolor="gray",
+        ),
     )
     fig.update_xaxes(title_text="", side="top", row=1, col=1)
     fig.update_xaxes(title_text="", row=2, col=1)
@@ -281,7 +287,7 @@ if uploaded_file_1 and uploaded_file_2:
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
         categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
         category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
-        st.markdown(f"### Анализируемый продукт/категория: :blue[{category_label}]")
+        st.markdown(f"### Якорный продукт: :violet[{category_label}]")
 
         df, period_order, rank_to_period, _ = merge_and_prepare(df1, df2)
         period_labels_short = [
@@ -311,9 +317,11 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            # Шире ячейка выбора категорий (~10 символов), чтобы длинные названия были видны
+            # Шире только чипы с выбранными категориями, не сам выпадающий список
             st.markdown(
-                """<style>div[data-testid="stMultiSelect"] div[role="combobox"] { min-width: 28ch; }</style>""",
+                """<style>
+                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
+                </style>""",
                 unsafe_allow_html=True,
             )
             selected_categories = st.multiselect(
