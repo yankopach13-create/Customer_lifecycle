@@ -349,19 +349,21 @@ if uploaded_file_1 and uploaded_file_2:
                 label_visibility="collapsed",
             )
             st.caption("Выберите анализируемый продукт")
-            # Красные чипы: одна строка, шире, скруглённые грани
-            st.markdown(
-                """<style>
-                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
-                </style>""",
-                unsafe_allow_html=True,
-            )
             selected_categories = st.multiselect(
                 "Категории",
                 options=all_categories,
                 default=categories_from_doc1,
                 key="category_select",
                 label_visibility="collapsed",
+            )
+            # Стили чипов; сдвиг ячейки выбора продукта выше к надписи
+            st.markdown(
+                """<style>
+                span[data-baseweb="tag"] { min-width: 320px; max-width: 580px; white-space: nowrap; border-radius: 12px; }
+                span[data-baseweb="tag"] span { white-space: nowrap; }
+                div[data-testid="stMultiSelect"] { margin-top: -0.6rem; }
+                </style>""",
+                unsafe_allow_html=True,
             )
 
         # Когорта = клиенты из документа 1, купившие на выбранной неделе (в документе 1)
