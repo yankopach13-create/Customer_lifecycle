@@ -720,15 +720,16 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                     # Одна категория — как раньше; несколько — разбивка «из них X ед. категория1 и Y ед. категория2»
                     if len(selected_categories_block) > 1 and len(q_by_cat) > 0:
-                        expected_by_cat = (q_by_cat / q_anchor * n_anchor).round().astype(int)
-                        parts_main = [f'<span class="block-num">{int(expected_by_cat[c])}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in expected_by_cat.index]
+                        expected_by_cat = (q_by_cat / q_anchor * n_anchor).round(1)
+                        _fmt = lambda x: f"{x:.1f}".replace(".", ",")
+                        parts_main = [f'<span class="block-num">{_fmt(expected_by_cat[c])}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in expected_by_cat.index]
                         main_tail = " и ".join(parts_main)
                         main_html = (
                             f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
                             f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
                             f'<span class="block-num">{expected_int}</span> ед., из них {main_tail}.'
                         )
-                        ratio_parts = [f'<span class="block-num">{q_by_cat[c] / q_anchor:.1f}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in q_by_cat.index]
+                        ratio_parts = [f'<span class="block-num">{_fmt(q_by_cat[c] / q_anchor)}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in q_by_cat.index]
                         ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span> ед., из них {" и ".join(ratio_parts)}.'
                     else:
                         analyzed_names = selected_categories_block[0] if selected_categories_block else "анализируемого продукта"
