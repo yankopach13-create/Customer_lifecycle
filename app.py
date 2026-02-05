@@ -687,7 +687,7 @@ if uploaded_file_1 and uploaded_file_2:
                 df1_block["_in_window"] = df1_block.apply(in_window, axis=1)
                 q_anchor = df1_block.loc[df1_block["_in_window"], COL_QUANTITY].sum()
 
-                # Анализируемый: выбор из ячейки блока (док 1 и док 2)
+                # Анализируемый: по категориям (док 1 и док 2) для разбивки при нескольких категориях
                 selected_in_doc1_block = [c for c in selected_categories_block if c in categories_from_doc1_set]
                 selected_in_doc2_block = [c for c in selected_categories_block if c in set(categories_from_doc2)]
                 parts_an = []
@@ -696,31 +696,48 @@ if uploaded_file_1 and uploaded_file_2:
                     d1["_client_norm"] = _norm_client_id(d1[COL_CLIENT])
                     d1 = d1[d1["_client_norm"].isin(cohort_clients_block)]
                     d1["_in_window"] = d1.apply(in_window, axis=1)
-                    parts_an.append(d1.loc[d1["_in_window"], [COL_QUANTITY]])
+                    parts_an.append(d1.loc[d1["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
                 if selected_in_doc2_block:
                     d2 = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_block)].copy()
                     d2["_client_norm"] = _norm_client_id(d2[COL_CLIENT])
                     d2 = d2[d2["_client_norm"].isin(cohort_clients_block)]
                     d2["_in_window"] = d2.apply(in_window, axis=1)
-                    parts_an.append(d2.loc[d2["_in_window"], [COL_QUANTITY]])
-                q_analyzed = pd.concat(parts_an, ignore_index=True)[COL_QUANTITY].sum() if parts_an else 0
+                    parts_an.append(d2.loc[d2["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
+                if parts_an:
+                    df_an = pd.concat(parts_an, ignore_index=True)
+                    q_by_cat = df_an.groupby(COL_CATEGORY)[COL_QUANTITY].sum().reindex(selected_categories_block).fillna(0).astype(int)
+                else:
+                    q_by_cat = pd.Series(dtype=int)
+                q_analyzed = int(q_by_cat.sum()) if len(q_by_cat) else 0
 
                 if q_anchor and q_anchor > 0:
                     r_ratio = q_analyzed / q_anchor
                     expected = n_anchor * r_ratio
                     expected_int = int(round(expected))
                     anchor_name = category_label
-                    analyzed_names = ", ".join(selected_categories_block) if selected_categories_block else "анализируемого продукта"
                     period_range_caption = format_period_range_for_caption(
                         cohorts_to_use, cohort_ranks, rank_to_period, k_periods, is_months
                     )
-                    # Цифры — оранжевые; названия товаров — курсив и визуально выделены
-                    main_html = (
-                        f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
-                        f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
-                        f'<span class="block-num">{expected_int}</span> ед. <span class="block-product">{analyzed_names}</span>.'
-                    )
-                    ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
+                    # Одна категория — как раньше; несколько — разбивка «из них X ед. категория1 и Y ед. категория2»
+                    if len(selected_categories_block) > 1 and len(q_by_cat) > 0:
+                        expected_by_cat = (q_by_cat / q_anchor * n_anchor).round().astype(int)
+                        parts_main = [f'<span class="block-num">{int(expected_by_cat[c])}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in expected_by_cat.index]
+                        main_tail = " и ".join(parts_main)
+                        main_html = (
+                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
+                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int}</span> ед., из них {main_tail}.'
+                        )
+                        ratio_parts = [f'<span class="block-num">{q_by_cat[c] / q_anchor:.1f}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in q_by_cat.index]
+                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span> ед., из них {" и ".join(ratio_parts)}.'
+                    else:
+                        analyzed_names = selected_categories_block[0] if selected_categories_block else "анализируемого продукта"
+                        main_html = (
+                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
+                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int}</span> ед. <span class="block-product">{analyzed_names}</span>.'
+                        )
+                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
                     st.markdown(
                         f"""
                         <style>
