@@ -744,7 +744,7 @@ if uploaded_file_1 and uploaded_file_2:
                         .block-result-box {{ background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
                         .block-result-box .block-period-caption {{ font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }}
                         .block-result-box .block-num {{ color: #e85d04; font-size: 1.25rem; font-weight: bold; }}
-                        .block-result-box .block-product {{ font-style: italic; background: #e9ecef; color: #495057; padding: 0.1em 0.35em; border-radius: 4px; }}
+                        .block-result-box .block-product {{ font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }}
                         </style>
                         <div class="block-result-box">
                         <span class="block-period-caption">{period_range_caption}</span>
