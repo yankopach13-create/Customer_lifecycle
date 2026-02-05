@@ -318,7 +318,7 @@ if uploaded_file_1 and uploaded_file_2:
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
         categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
         category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
-        st.markdown(f"### Якорный продукт когорт: :violet[{category_label}]")
+        st.markdown(f"### Якорный продукт: :violet[{category_label}]")
 
         df, period_order, rank_to_period, _ = merge_and_prepare(df1, df2)
         period_labels_short = [
@@ -341,28 +341,26 @@ if uploaded_file_1 and uploaded_file_2:
         # Верхняя строка: слева — выбор когорты и категорий, справа — таблица данных
         col_filters, col_table = st.columns([1, 3])
         with col_filters:
-            st.caption("Выберите когорту клиентов")
+            st.caption("Выберите когорту и категорию для анализа.")
             selected_cohort_label = st.selectbox(
                 "Когорта",
                 options=cohort_labels,
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            st.caption("Выберите анализируемый продукт")
+            # Шире только чипы с выбранными категориями, не сам выпадающий список
+            st.markdown(
+                """<style>
+                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
+                </style>""",
+                unsafe_allow_html=True,
+            )
             selected_categories = st.multiselect(
                 "Категории",
                 options=all_categories,
                 default=categories_from_doc1,
                 key="category_select",
                 label_visibility="collapsed",
-            )
-            # Стили чипов; сдвиг ячейки выбора продукта выше к надписи
-            st.markdown(
-                """<style>
-                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
-                div[data-testid="stMultiSelect"] { margin-top: -0.6rem; }
-                </style>""",
-                unsafe_allow_html=True,
             )
 
         # Когорта = клиенты из документа 1, купившие на выбранной неделе (в документе 1)
