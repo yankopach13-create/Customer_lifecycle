@@ -318,7 +318,7 @@ if uploaded_file_1 and uploaded_file_2:
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
         categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
         category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
-        st.markdown(f"### Якорный продукт: :violet[{category_label}]")
+        st.markdown(f"### Якорный продукт когорт: :violet[{category_label}]")
 
         df, period_order, rank_to_period, _ = merge_and_prepare(df1, df2)
         period_labels_short = [
@@ -330,10 +330,14 @@ if uploaded_file_1 and uploaded_file_2:
         categories_from_doc1_set = set(categories_from_doc1)
         # В списке категорий: сначала из документа 1 (анализируемая), потом из документа 2 (другие)
         all_categories = categories_from_doc1 + [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
+        # Когорты с подписью вида "2025/01 (N клиентов)"
         cohort_options = []
         for r in sorted(rank_to_period.index):
             row = rank_to_period.loc[r]
-            label = f"{row[COL_PERIOD_MAIN]} {row[COL_PERIOD_SUB]}".strip()
+            pm, ps = str(row[COL_PERIOD_MAIN]).strip(), str(row[COL_PERIOD_SUB]).strip()
+            short = period_labels_short[r] if r < len(period_labels_short) else f"{pm} {ps}"
+            n_clients = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT].nunique()
+            label = f"{short} ({n_clients} клиентов)"
             cohort_options.append((r, label))
         cohort_labels = [lb for _, lb in cohort_options]
         cohort_ranks = {lb: r for r, lb in cohort_options}
@@ -341,7 +345,7 @@ if uploaded_file_1 and uploaded_file_2:
         # Верхняя строка: слева — выбор когорты и категорий, справа — таблица данных
         col_filters, col_table = st.columns([1, 3])
         with col_filters:
-            st.caption("Выберите когорту и категорию для анализа.")
+            st.caption("Выберите когорту клиентов и анализируемый продукт")
             selected_cohort_label = st.selectbox(
                 "Когорта",
                 options=cohort_labels,
