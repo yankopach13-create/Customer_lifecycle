@@ -472,10 +472,48 @@ if uploaded_file_1 and uploaded_file_2:
             col_tbl_left, col_tbl_right = st.columns(2)
             with col_tbl_left:
                 st.caption("Количество клиентов")
-                st.dataframe(table_clients, use_container_width=True, height=120)
+                st.dataframe(table_clients, use_container_width=True, height="content")
             with col_tbl_right:
                 st.caption("Количество товара")
-                st.dataframe(table_qty, use_container_width=True, height=120)
+                st.dataframe(table_qty, use_container_width=True, height="content")
+            # Синхронный горизонтальный скролл двух таблиц (без объединения)
+            st.markdown(
+                """
+                <script>
+                (function() {
+                    function findScrollable(el) {
+                        if (!el) return null;
+                        var s = getComputedStyle(el);
+                        if ((s.overflowX === 'auto' || s.overflowX === 'scroll' || s.overflow === 'auto') && el.scrollWidth > el.clientWidth) return el;
+                        for (var c = el.firstElementChild; c; c = c.nextElementSibling) {
+                            var r = findScrollable(c);
+                            if (r) return r;
+                        }
+                        return null;
+                    }
+                    function run() {
+                        var cols = document.querySelectorAll('[data-testid="column"]');
+                        var pair = [];
+                        cols.forEach(function(col) {
+                            var frame = col.querySelector('[data-testid="stDataFrame"]');
+                            if (frame) pair.push(col);
+                        });
+                        if (pair.length >= 2) {
+                            var lastTwo = [pair[pair.length-2], pair[pair.length-1]];
+                            var left = findScrollable(lastTwo[0]);
+                            var right = findScrollable(lastTwo[1]);
+                            if (left && right && !left._synced) {
+                                left._synced = true;
+                                left.addEventListener('scroll', function() { right.scrollLeft = left.scrollLeft; });
+                            }
+                        }
+                    }
+                    setTimeout(run, 1000);
+                })();
+                </script>
+                """,
+                unsafe_allow_html=True,
+            )
 
         # График под блоком выбора и таблицы — на всю ширину, выше
         fig_combined = build_combined_two_charts(
