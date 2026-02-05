@@ -18,6 +18,13 @@ COL_QUANTITY = "quantity"
 COL_CLIENT = "client_id"
 
 
+def _norm_client_id(ser: pd.Series) -> pd.Series:
+    """Приводит коды клиентов к одному строковому виду (348385 и 348385.0 → одинаково)."""
+    s = ser.astype(str).str.strip()
+    # убираем хвост .0 у целых чисел, чтобы совпадали коды из разных файлов
+    return s.str.replace(r"\.0$", "", regex=True)
+
+
 def load_and_normalize(uploaded_file):
     """Читает Excel и приводит к стандартным столбцам: category, period_main, period_sub, quantity, client_id."""
     if uploaded_file is None:
@@ -30,7 +37,7 @@ def load_and_normalize(uploaded_file):
     cols = cols.dropna(subset=[COL_PERIOD_MAIN, COL_CLIENT])
     cols[COL_QUANTITY] = pd.to_numeric(cols[COL_QUANTITY], errors="coerce").fillna(0).astype(int)
     cols[COL_CATEGORY] = cols[COL_CATEGORY].astype(str).str.strip()
-    cols[COL_CLIENT] = cols[COL_CLIENT].astype(str).str.strip()
+    cols[COL_CLIENT] = _norm_client_id(cols[COL_CLIENT])
     return cols
 
 
@@ -319,7 +326,7 @@ if uploaded_file_1 and uploaded_file_2:
         pm, ps = rank_to_period.loc[cohort_rank, COL_PERIOD_MAIN], rank_to_period.loc[cohort_rank, COL_PERIOD_SUB]
         pm, ps = str(pm).strip(), str(ps).strip()
         cohort_clients = set(
-            df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
+            df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT].tolist()
         )
         # Нормализуем типы периода к строке (как в period_order), чтобы merge не падал по dtype
         df1_norm = df1.copy()
@@ -344,18 +351,21 @@ if uploaded_file_1 and uploaded_file_2:
         # Данные по анализируемой категории — из документа 1; по другим категориям — из документа 2
         selected_in_doc1 = [c for c in selected_categories if c in categories_from_doc1_set]
         selected_in_doc2 = [c for c in selected_categories if c in set(categories_from_doc2)]
+        # Коды клиентов в документе 2 приводим к тому же виду, что в когорте (для надёжного сопоставления)
+        df2_with_period["_client_norm"] = _norm_client_id(df2_with_period[COL_CLIENT])
+        df1_with_period["_client_norm"] = _norm_client_id(df1_with_period[COL_CLIENT])
         parts = []
         if selected_in_doc1:
             parts.append(
                 df1_with_period[
-                    df1_with_period[COL_CLIENT].isin(cohort_clients)
+                    df1_with_period["_client_norm"].isin(cohort_clients)
                     & df1_with_period[COL_CATEGORY].isin(selected_in_doc1)
                 ].copy()
             )
         if selected_in_doc2:
             parts.append(
                 df2_with_period[
-                    df2_with_period[COL_CLIENT].isin(cohort_clients)
+                    df2_with_period["_client_norm"].isin(cohort_clients)
                     & df2_with_period[COL_CATEGORY].isin(selected_in_doc2)
                 ].copy()
             )
@@ -364,9 +374,10 @@ if uploaded_file_1 and uploaded_file_2:
             stack_col = COL_CATEGORY
         else:
             # Ничего не выбрано — показываем активность когорты только по документу 1
-            df_plot = df1_with_period[df1_with_period[COL_CLIENT].isin(cohort_clients)].copy()
+            df_plot = df1_with_period[df1_with_period["_client_norm"].isin(cohort_clients)].copy()
             df_plot["_total"] = "Активные клиенты"
             stack_col = "_total"
+        df_plot = df_plot.drop(columns=["_client_norm"], errors="ignore")
 
         x_col_short = "period_label_short"
 
