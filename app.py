@@ -75,6 +75,41 @@ def format_period_short(period_main, period_sub):
     return f"{year_short}/{week}" if year_short and week else f"{pm} {ps}".strip()
 
 
+# Сокращения месяцев для строки «По данным за янв-фев 2025»
+_MONTH_ABBR = {
+    "январь": "янв", "февраль": "фев", "март": "мар", "апрель": "апр",
+    "май": "май", "июнь": "июн", "июль": "июл", "август": "авг",
+    "сентябрь": "сен", "октябрь": "окт", "ноябрь": "ноя", "декабрь": "дек",
+}
+
+
+def format_period_range_for_caption(cohorts_to_use, cohort_ranks, rank_to_period, k_periods, is_months):
+    """
+    Формирует подпись диапазона периодов: «По данным за 1-6 недель 2025» или «По данным за янв-фев 2025».
+    """
+    if not cohorts_to_use or not rank_to_period.index.size:
+        return ""
+    r_min = min(cohort_ranks[lb] for lb in cohorts_to_use)
+    r_max = max(cohort_ranks[lb] for lb in cohorts_to_use) + int(k_periods) - 1
+    r_max = min(r_max, rank_to_period.index.max())
+    r_min = max(r_min, rank_to_period.index.min())
+    first = rank_to_period.loc[r_min]
+    last = rank_to_period.loc[r_max]
+    pm_f, ps_f = str(first[COL_PERIOD_MAIN]).strip(), str(first[COL_PERIOD_SUB]).strip()
+    pm_l, ps_l = str(last[COL_PERIOD_MAIN]).strip(), str(last[COL_PERIOD_SUB]).strip()
+    year_match = re.search(r"20\d{2}|\d{4}", pm_f)
+    year = year_match.group(0) if year_match else (pm_l if re.search(r"\d{4}", pm_l) else "")
+    if is_months:
+        abbr = lambda s: _MONTH_ABBR.get(s.lower(), s[:3].lower() if len(s) >= 3 else s)
+        part = f"{abbr(ps_f)}-{ps_l}" if ps_f != ps_l else abbr(ps_f)
+        return f"По данным за {part} {year}"
+    w_f = re.search(r"\d+", ps_f)
+    w_l = re.search(r"\d+", ps_l)
+    week_f = w_f.group(0) if w_f else ps_f
+    week_l = w_l.group(0) if w_l else ps_l
+    return f"По данным за {week_f}-{week_l} недель {year}"
+
+
 def build_stacked_area(
     df_plot, x_col, value_col, stack_col, title, value_label,
     x_order=None, show_title=True, xaxis_title=None, xaxis_side="bottom",
@@ -700,6 +735,9 @@ if uploaded_file_1 and uploaded_file_2:
                     expected_int = int(round(expected))
                     anchor_name = category_label
                     analyzed_names = ", ".join(selected_categories_block) if selected_categories_block else "анализируемого продукта"
+                    period_range_caption = format_period_range_for_caption(
+                        cohorts_to_use, cohort_ranks, rank_to_period, k_periods, is_months
+                    )
                     # Цифры — оранжевые; названия товаров — курсив и визуально выделены
                     main_html = (
                         f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
@@ -715,6 +753,7 @@ if uploaded_file_1 and uploaded_file_2:
                         .block-result-box .block-product {{ font-style: italic; background: #e9ecef; color: #495057; padding: 0.1em 0.35em; border-radius: 4px; }}
                         </style>
                         <div class="block-result-box">
+                        <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem; opacity: 0.95;">{period_range_caption}</p>
                         <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
                         <p style="margin: 0; font-size: 0.95rem;">{ref_html}</p>
                         </div>
