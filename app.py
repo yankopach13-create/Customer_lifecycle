@@ -576,26 +576,21 @@ if uploaded_file_1 and uploaded_file_2:
         is_months = period_sub_str.str.contains(r"янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек", regex=True).any()
         period_word = "месяцев" if is_months else "недель"
 
-        col_cohorts_block, col_analyzed_block, col_params = st.columns([2, 2, 1])
+        st.markdown('<div id="sales-block-wrap">', unsafe_allow_html=True)
+        col_cohorts_block, col_analyzed_block, col_params, col_btn = st.columns([1, 1, 1, 1])
         with col_cohorts_block:
-            st.caption("С когорты — по когорту")
-            col_from, col_to = st.columns(2)
-            with col_from:
-                cohort_start_block = st.selectbox(
-                    "С когорты",
-                    options=cohort_labels,
-                    index=0,
-                    key="block_cohort_start",
-                    label_visibility="collapsed",
-                )
-            with col_to:
-                cohort_end_block = st.selectbox(
-                    "По когорту",
-                    options=cohort_labels,
-                    index=0,
-                    key="block_cohort_end",
-                    label_visibility="collapsed",
-                )
+            cohort_start_block = st.selectbox(
+                "С когорты",
+                options=cohort_labels,
+                index=0,
+                key="block_cohort_start",
+            )
+            cohort_end_block = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="block_cohort_end",
+            )
         with col_analyzed_block:
             selected_categories_block = st.multiselect(
                 "Анализируемый продукт",
@@ -607,14 +602,24 @@ if uploaded_file_1 and uploaded_file_2:
         with col_params:
             n_anchor = st.number_input("Кол-во якорного товара", min_value=1, value=10, step=1, key="block_n_anchor")
             k_periods = st.number_input(
-                f"Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
+                "Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
                 min_value=1,
                 value=5,
                 step=1,
                 key="block_k_weeks",
             )
-
-        apply_block = st.button("Применить к расчёту", key="block_apply")
+        with col_btn:
+            st.markdown("<div style='min-height: 2.25rem;'></div>")
+            apply_block = st.button("Применить к расчёту", key="block_apply")
+        st.markdown(
+            """<style>
+            #sales-block-wrap [data-testid="column"] { align-items: stretch; }
+            #sales-block-wrap .stButton > button { background-color: #7B2CBF !important; color: white !important; border: none !important; }
+            #sales-block-wrap .stButton > button:hover { background-color: #6A2A9E !important; color: white !important; }
+            </style>""",
+            unsafe_allow_html=True,
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if apply_block:
             idx_start = cohort_labels.index(cohort_start_block)
@@ -683,23 +688,22 @@ if uploaded_file_1 and uploaded_file_2:
                     expected_int = int(round(expected))
                     anchor_name = category_label
                     analyzed_names = ", ".join(selected_categories_block) if selected_categories_block else "анализируемого продукта"
-                    main_text = (
-                        f"При продаже {int(n_anchor)} ед. {anchor_name} в течении {int(k_periods)} {period_word} "
-                        f"будет продано {expected_int} ед. {analyzed_names}."
+                    # Прозрачно-фиолетовый фон, белый текст; цифры — чёрные и на 2 размера больше
+                    main_html = (
+                        f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. {anchor_name} в течении '
+                        f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
+                        f'<span class="block-num">{expected_int}</span> ед. {analyzed_names}.'
                     )
-                    ref_text = f"Ед. анализируемого товара на ед. якорного товара: {r_ratio:.2f}"
+                    ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
                     st.markdown(
                         f"""
-                        <div style="
-                            background: white;
-                            border: 2px solid #7B2CBF;
-                            border-radius: 8px;
-                            padding: 1rem 1.25rem;
-                            margin: 0.5rem 0;
-                            color: #2D1B4E;
-                        ">
-                        <p style="margin: 0 0 0.5rem 0; font-size: 1.05rem;"><strong>{main_text}</strong></p>
-                        <p style="margin: 0; font-size: 0.9rem; color: #7B2CBF;">{ref_text}</p>
+                        <style>
+                        .block-result-box {{ background: rgba(123, 44, 191, 0.35); border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
+                        .block-result-box .block-num {{ color: black; font-size: 1.25rem; font-weight: bold; }}
+                        </style>
+                        <div class="block-result-box">
+                        <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
+                        <p style="margin: 0; font-size: 0.95rem;">{ref_html}</p>
                         </div>
                         """,
                         unsafe_allow_html=True,
