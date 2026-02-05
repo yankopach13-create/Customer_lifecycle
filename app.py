@@ -304,15 +304,18 @@ if uploaded_file_1 and uploaded_file_2:
         # Верхняя строка: слева — выбор когорты и категорий, справа — таблица данных
         col_filters, col_table = st.columns([1, 3])
         with col_filters:
-            st.caption("Выберите когорту для анализа.")
+            st.caption("Выберите когорту и категорию для анализа.")
             selected_cohort_label = st.selectbox(
                 "Когорта",
                 options=cohort_labels,
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            st.caption("Категории (активность когорты в выбранных категориях):")
-            st.caption(":blue[По умолчанию выбрана категория из документа 1.]")
+            # Шире ячейка выбора категорий (~10 символов), чтобы длинные названия были видны
+            st.markdown(
+                """<style>div[data-testid="stMultiSelect"] div[role="combobox"] { min-width: 28ch; }</style>""",
+                unsafe_allow_html=True,
+            )
             selected_categories = st.multiselect(
                 "Категории",
                 options=all_categories,
