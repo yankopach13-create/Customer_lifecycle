@@ -566,5 +566,89 @@ if uploaded_file_1 and uploaded_file_2:
         )
         st.subheader("Стековая диаграмма с областями")
         st.plotly_chart(fig_combined, use_container_width=True)
+
+        # --- Блок «Продажи анализируемого продукта на объём якорного» ---
+        st.divider()
+        st.subheader("Продажи анализируемого продукта на объём якорного")
+
+        col_cohorts_block, col_params = st.columns([2, 1])
+        with col_cohorts_block:
+            selected_cohorts_block = st.multiselect(
+                "Когорты для расчёта",
+                options=cohort_labels,
+                default=[selected_cohort_label],
+                key="block_cohorts",
+                help="Выберите одну, несколько или добавьте все когорты для расчёта коэффициента.",
+            )
+        with col_params:
+            n_anchor = st.number_input("Кол-во якорного товара", min_value=1, value=10, step=1, key="block_n_anchor")
+            k_weeks = st.number_input(
+                "Недель с покупки якорного (включая неделю когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="block_k_weeks",
+            )
+
+        if not selected_cohorts_block:
+            st.caption("Выберите хотя бы одну когорту для расчёта.")
+        else:
+            # Клиенты выбранных когорт (нормализованный id)
+            cohort_clients_block = set()
+            for lb in selected_cohorts_block:
+                r = cohort_ranks[lb]
+                pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
+                pm, ps = str(pm).strip(), str(ps).strip()
+                clients_r = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
+                cohort_clients_block.update(_norm_client_id(clients_r).tolist())
+            # Для каждого клиента — его неделя когорты (min period_rank по док 1)
+            df1_cr = df1_with_period.copy()
+            df1_cr["_client_norm"] = _norm_client_id(df1_cr[COL_CLIENT])
+            df1_cr = df1_cr[df1_cr["_client_norm"].isin(cohort_clients_block)]
+            client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min().to_dict()
+
+            # Окно для каждого клиента: [cohort_rank, cohort_rank + k_weeks - 1]
+            def in_window(row):
+                c = row.get("_client_norm")
+                r0 = client_cohort_rank.get(c)
+                if r0 is None:
+                    return False
+                pr = row.get("period_rank")
+                if pd.isna(pr):
+                    return False
+                return r0 <= pr < r0 + k_weeks
+
+            # Якорный: док 1 (вся категория якоря), только клиенты блока и окно
+            df1_block = df1_with_period.copy()
+            df1_block["_client_norm"] = _norm_client_id(df1_block[COL_CLIENT])
+            df1_block = df1_block[df1_block["_client_norm"].isin(cohort_clients_block)]
+            df1_block["_in_window"] = df1_block.apply(in_window, axis=1)
+            q_anchor = df1_block.loc[df1_block["_in_window"], COL_QUANTITY].sum()
+
+            # Анализируемый: выбранные категории из док 1 и док 2, те же клиенты и окно
+            parts_an = []
+            if selected_in_doc1:
+                d1 = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1)].copy()
+                d1["_client_norm"] = _norm_client_id(d1[COL_CLIENT])
+                d1 = d1[d1["_client_norm"].isin(cohort_clients_block)]
+                d1["_in_window"] = d1.apply(in_window, axis=1)
+                parts_an.append(d1.loc[d1["_in_window"], [COL_QUANTITY]])
+            if selected_in_doc2:
+                d2 = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2)].copy()
+                d2["_client_norm"] = _norm_client_id(d2[COL_CLIENT])
+                d2 = d2[d2["_client_norm"].isin(cohort_clients_block)]
+                d2["_in_window"] = d2.apply(in_window, axis=1)
+                parts_an.append(d2.loc[d2["_in_window"], [COL_QUANTITY]])
+            q_analyzed = pd.concat(parts_an, ignore_index=True)[COL_QUANTITY].sum() if parts_an else 0
+
+            if q_anchor and q_anchor > 0:
+                r_ratio = q_analyzed / q_anchor
+                expected = n_anchor * r_ratio
+                st.success(
+                    f"**При продаже {int(n_anchor)} ед. якорного товара ожидаемо будет куплено анализируемого продукта: {expected:.1f} ед.** "
+                    f"(коэффициент за {int(k_weeks)} нед. с учётом недели когорты: {r_ratio:.2f})"
+                )
+            else:
+                st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
