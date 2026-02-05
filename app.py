@@ -132,10 +132,14 @@ def build_combined_two_charts(
     x_col,
     period_labels_short,
     stack_col,
+    add_total=False,
+    clients_total_values=None,
+    qty_total_values=None,
 ):
     """
     Строит одну фигуру с двумя подграфиками (общая ось X).
     Одинаковые категории — одинаковые цвета в обоих графиках.
+    При add_total и 2+ категориях добавляется серия «Итого» (один цвет в легенде).
     """
     x_vals = period_labels_short
     if clients_by_period.empty and qty_by_period.empty:
@@ -145,7 +149,9 @@ def build_combined_two_charts(
 
     stacks_cl = clients_by_period[stack_col].unique().tolist() if not clients_by_period.empty else []
     stacks_q = qty_by_period[stack_col].unique().tolist() if not qty_by_period.empty else []
-    all_stacks = list(dict.fromkeys(stacks_cl + stacks_q))  # порядок: сначала из клиентов, потом товар
+    all_stacks = list(dict.fromkeys(stacks_cl + stacks_q))
+    if add_total:
+        all_stacks = ["Итого"] + all_stacks
     palette = px.colors.qualitative.Plotly
     color_map = {s: palette[i % len(palette)] for i, s in enumerate(all_stacks)}
 
@@ -158,7 +164,7 @@ def build_combined_two_charts(
         subplot_titles=("", ""),
     )
 
-    # Верхний график: клиенты
+    # Верхний график: клиенты (сначала стек по категориям, затем линия Итого поверх)
     if not clients_by_period.empty:
         for s in stacks_cl:
             sub = clients_by_period[clients_by_period[stack_col] == s]
@@ -172,6 +178,18 @@ def build_combined_two_charts(
                     fill="tonexty",
                     stackgroup="one",
                     line=dict(width=0.5, color=color_map.get(s, None)),
+                ),
+                row=1,
+                col=1,
+            )
+        if add_total and clients_total_values is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals,
+                    y=list(clients_total_values),
+                    name="Итого",
+                    mode="lines",
+                    line=dict(width=1.5, color=color_map.get("Итого", "#636EFA"), dash="dash"),
                 ),
                 row=1,
                 col=1,
@@ -196,6 +214,19 @@ def build_combined_two_charts(
                 row=2,
                 col=1,
             )
+        if add_total and qty_total_values is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals,
+                    y=list(qty_total_values),
+                    name="Итого",
+                    mode="lines",
+                    line=dict(width=1.5, color=color_map.get("Итого", "#636EFA"), dash="dash"),
+                    showlegend=False,
+                ),
+                row=2,
+                col=1,
+            )
 
     total_height = COMBINED_CHART_ROW_HEIGHT * 2
     fig.update_layout(
@@ -204,7 +235,7 @@ def build_combined_two_charts(
         template="plotly_white",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=40, b=40, l=50, r=120),
+        margin=dict(t=40, b=40, l=80, r=40),
         hoverlabel=dict(
             namelength=-1,
             font=dict(size=12, color="black"),
@@ -214,9 +245,9 @@ def build_combined_two_charts(
     )
     fig.update_xaxes(title_text="", side="top", row=1, col=1)
     fig.update_xaxes(title_text="", row=2, col=1)
-    # Подписи осей Y справа от графика
-    fig.update_yaxes(title_text="Количество клиентов", row=1, col=1, side="right")
-    fig.update_yaxes(title_text="Количество товара", row=2, col=1, side="right")
+    # Подписи осей Y слева от графика
+    fig.update_yaxes(title_text="Количество клиентов", row=1, col=1, side="left")
+    fig.update_yaxes(title_text="Количество товара", row=2, col=1, side="left")
     fig.update_xaxes(showspikes=True, spikemode="across+marker", spikecolor="gray", spikethickness=1)
     return fig
 
@@ -516,13 +547,20 @@ if uploaded_file_1 and uploaded_file_2:
             )
 
         # График под блоком выбора и таблицы — на всю ширину, выше
+        add_total = stack_col == COL_CATEGORY and len(clients_by_period[stack_col].unique()) >= 2
+        clients_total_arr = clients_total.values if add_total else None
+        qty_total_arr = qty_total.values if add_total else None
         fig_combined = build_combined_two_charts(
             clients_by_period,
             qty_by_period,
             x_col_short,
             period_labels_short,
             stack_col,
+            add_total=add_total,
+            clients_total_values=clients_total_arr,
+            qty_total_values=qty_total_arr,
         )
+        st.subheader("Стековая диаграмма с областями")
         st.plotly_chart(fig_combined, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
