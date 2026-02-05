@@ -348,15 +348,10 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cohort_select",
                 label_visibility="collapsed",
             )
-            # Красные чипы: одна строка, шире, скруглённые грани
+            # Шире только чипы с выбранными категориями, не сам выпадающий список
             st.markdown(
                 """<style>
-                span[data-baseweb="tag"] {
-                    min-width: 320px; max-width: 580px;
-                    white-space: nowrap;
-                    border-radius: 12px;
-                }
-                span[data-baseweb="tag"] span { white-space: nowrap; }
+                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
                 </style>""",
                 unsafe_allow_html=True,
             )
