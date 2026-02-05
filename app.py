@@ -571,18 +571,31 @@ if uploaded_file_1 and uploaded_file_2:
         st.divider()
         st.subheader("Продажи анализируемого продукта на объём якорного")
 
-        option_all_cohorts = "Все когорты"
-        cohort_options_block = [option_all_cohorts] + cohort_labels
+        # Определение типа периода по данным (недели или месяцы)
+        period_sub_str = period_order[COL_PERIOD_SUB].astype(str).str.lower()
+        is_months = period_sub_str.str.contains(r"янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек", regex=True).any()
+        period_word = "месяцев" if is_months else "недель"
 
         col_cohorts_block, col_analyzed_block, col_params = st.columns([2, 2, 1])
         with col_cohorts_block:
-            selected_cohorts_block = st.multiselect(
-                "Когорты для расчёта",
-                options=cohort_options_block,
-                default=[selected_cohort_label],
-                key="block_cohorts",
-                help="Ctrl+клик — выбрать несколько когорт. «Все когорты» — учесть все.",
-            )
+            st.caption("С когорты — по когорту")
+            col_from, col_to = st.columns(2)
+            with col_from:
+                cohort_start_block = st.selectbox(
+                    "С когорты",
+                    options=cohort_labels,
+                    index=0,
+                    key="block_cohort_start",
+                    label_visibility="collapsed",
+                )
+            with col_to:
+                cohort_end_block = st.selectbox(
+                    "По когорту",
+                    options=cohort_labels,
+                    index=0,
+                    key="block_cohort_end",
+                    label_visibility="collapsed",
+                )
         with col_analyzed_block:
             selected_categories_block = st.multiselect(
                 "Анализируемый продукт",
@@ -593,8 +606,8 @@ if uploaded_file_1 and uploaded_file_2:
             )
         with col_params:
             n_anchor = st.number_input("Кол-во якорного товара", min_value=1, value=10, step=1, key="block_n_anchor")
-            k_weeks = st.number_input(
-                "Недель с покупки якорного (включая неделю когорты)",
+            k_periods = st.number_input(
+                f"Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
                 min_value=1,
                 value=5,
                 step=1,
@@ -604,11 +617,12 @@ if uploaded_file_1 and uploaded_file_2:
         apply_block = st.button("Применить к расчёту", key="block_apply")
 
         if apply_block:
-            # Реальные когорты: если выбрано «Все когорты» — берём все, иначе только выбранные (без «Все когорты»)
-            if option_all_cohorts in selected_cohorts_block:
-                cohorts_to_use = cohort_labels
+            idx_start = cohort_labels.index(cohort_start_block)
+            idx_end = cohort_labels.index(cohort_end_block)
+            if idx_start <= idx_end:
+                cohorts_to_use = cohort_labels[idx_start : idx_end + 1]
             else:
-                cohorts_to_use = [lb for lb in selected_cohorts_block if lb != option_all_cohorts]
+                cohorts_to_use = cohort_labels[idx_end : idx_start + 1]
 
             if not cohorts_to_use:
                 st.caption("Выберите хотя бы одну когорту для расчёта.")
@@ -627,7 +641,7 @@ if uploaded_file_1 and uploaded_file_2:
                 df1_cr = df1_cr[df1_cr["_client_norm"].isin(cohort_clients_block)]
                 client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min().to_dict()
 
-                # Окно для каждого клиента: [cohort_rank, cohort_rank + k_weeks - 1]
+                # Окно для каждого клиента: [cohort_rank, cohort_rank + k_periods - 1]
                 def in_window(row):
                     c = row.get("_client_norm")
                     r0 = client_cohort_rank.get(c)
@@ -636,7 +650,7 @@ if uploaded_file_1 and uploaded_file_2:
                     pr = row.get("period_rank")
                     if pd.isna(pr):
                         return False
-                    return r0 <= pr < r0 + k_weeks
+                    return r0 <= pr < r0 + k_periods
 
                 # Якорный: док 1 (вся категория якоря), только клиенты блока и окно
                 df1_block = df1_with_period.copy()
@@ -666,9 +680,29 @@ if uploaded_file_1 and uploaded_file_2:
                 if q_anchor and q_anchor > 0:
                     r_ratio = q_analyzed / q_anchor
                     expected = n_anchor * r_ratio
-                    st.success(
-                        f"**При продаже {int(n_anchor)} ед. якорного товара ожидаемо будет куплено анализируемого продукта: {expected:.1f} ед.** "
-                        f"(коэффициент за {int(k_weeks)} нед. с учётом недели когорты: {r_ratio:.2f})"
+                    expected_int = int(round(expected))
+                    anchor_name = category_label
+                    analyzed_names = ", ".join(selected_categories_block) if selected_categories_block else "анализируемого продукта"
+                    main_text = (
+                        f"При продаже {int(n_anchor)} ед. {anchor_name} в течении {int(k_periods)} {period_word} "
+                        f"будет продано {expected_int} ед. {analyzed_names}."
+                    )
+                    ref_text = f"Ед. анализируемого товара на ед. якорного товара: {r_ratio:.2f}"
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background: white;
+                            border: 2px solid #7B2CBF;
+                            border-radius: 8px;
+                            padding: 1rem 1.25rem;
+                            margin: 0.5rem 0;
+                            color: #2D1B4E;
+                        ">
+                        <p style="margin: 0 0 0.5rem 0; font-size: 1.05rem;"><strong>{main_text}</strong></p>
+                        <p style="margin: 0; font-size: 0.9rem; color: #7B2CBF;">{ref_text}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
                 else:
                     st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
