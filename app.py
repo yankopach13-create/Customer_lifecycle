@@ -922,7 +922,7 @@ if uploaded_file_1 and uploaded_file_2:
                     labels = km.fit_predict(Xs)
                     df_fit["_cluster_id"] = labels
 
-                    # Словесные названия по медианному объёму (низкий → высокий)
+                    # Словесные названия по медианному объёму (от низкого к высокому для соответствия order)
                     order = (
                         df_fit.groupby("_cluster_id")["volume"]
                         .median()
@@ -944,6 +944,7 @@ if uploaded_file_1 and uploaded_file_2:
 
                 # Итоговая таблица по кластерам
                 total_clients = len(per_client)
+                k_int_cluster = int(k_periods_cluster)
                 summary = (
                     per_client.groupby("cluster", dropna=False)
                     .agg(
@@ -951,27 +952,29 @@ if uploaded_file_1 and uploaded_file_2:
                         pct=("client_id", lambda s: 100.0 * len(s) / total_clients if total_clients else 0.0),
                         total_volume=("volume", "sum"),
                         avg_volume=("volume", "mean"),
-                        median_volume=("volume", "median"),
                         avg_regularity=("regularity", "mean"),
                     )
                     .reset_index()
                 )
-                # Сортировка: «Не покупали» первым, далее Низкий → Средний → Высокий объём, Покупатели
-                cluster_order = ["Не покупали", "Низкий объём", "Средний объём", "Высокий объём", "Покупатели"]
-
-                def _cluster_sort_key(x: str) -> int:
-                    if x in cluster_order:
-                        return cluster_order.index(x)
-                    return 999
-
-                summary["__sort"] = summary["cluster"].map(_cluster_sort_key)
-                summary = summary.sort_values("__sort").drop(columns=["__sort"])
+                # Средний объём в неделю по кластеру: сумма объёма кластера / K периодов
+                summary["avg_volume_per_period"] = (summary["total_volume"] / k_int_cluster).round(2)
+                # Сортировка по убыванию объёма (сначала кластеры с большим total_volume, «Не покупали» в конце)
+                summary["__sort_vol"] = summary["total_volume"]
+                summary.loc[summary["cluster"] == "Не покупали", "__sort_vol"] = -1
+                summary = summary.sort_values("__sort_vol", ascending=False).drop(columns=["__sort_vol"])
                 summary["pct"] = summary["pct"].round(1)
                 summary["total_volume"] = summary["total_volume"].astype(int)
                 summary["avg_volume"] = summary["avg_volume"].round(2)
-                summary["median_volume"] = summary["median_volume"].round(2)
                 summary["avg_regularity"] = summary["avg_regularity"].round(3)
 
+                total_volume_all = per_client["volume"].sum()
+                avg_per_week_all = total_volume_all / k_int_cluster if k_int_cluster else 0
+
+                st.caption("Итого по выбранным когортам и периоду")
+                st.markdown(
+                    f"**Всего клиентов:** {total_clients} · **Сумма объёма анализируемого продукта:** {int(total_volume_all)} ед. · "
+                    f"**Средний объём в неделю/месяц:** {avg_per_week_all:.2f} ед."
+                )
                 st.dataframe(
                     summary.rename(
                         columns={
@@ -980,7 +983,7 @@ if uploaded_file_1 and uploaded_file_2:
                             "pct": "% клиентов",
                             "total_volume": "Сумма объёма (ед.)",
                             "avg_volume": "Средний объём",
-                            "median_volume": "Медианный объём",
+                            "avg_volume_per_period": "Средний объём в неделю/месяц",
                             "avg_regularity": "Средняя регулярность",
                         }
                     ),
@@ -988,7 +991,7 @@ if uploaded_file_1 and uploaded_file_2:
                     height="content",
                 )
 
-                # График долей клиентов по кластерам
+                # График долей клиентов по кластерам (порядок осей как в таблице — по убыванию объёма)
                 fig_clusters = px.bar(
                     summary,
                     x="cluster",
