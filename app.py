@@ -913,9 +913,12 @@ if uploaded_file_1 and uploaded_file_2:
                 # Назначение одному из 8 поведенческих кластеров по объёму и регулярности (правила по перцентилям)
                 per_client["cluster"] = "Не покупали"
                 df_fit = per_client[per_client["volume"] > 0].copy()
+                v33_val = v67_val = 0.0
                 if not df_fit.empty:
-                    v33 = df_fit["volume"].quantile(1 / 3)
-                    v67 = df_fit["volume"].quantile(2 / 3)
+                    v33_val = float(df_fit["volume"].quantile(1 / 3))
+                    v67_val = float(df_fit["volume"].quantile(2 / 3))
+                    v33 = v33_val
+                    v67 = v67_val
                     r33 = 1 / 3
                     r67 = 2 / 3
 
@@ -957,7 +960,6 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                     .reset_index()
                 )
-                summary["avg_cluster_per_period"] = (summary["total_volume"] / k_int_cluster).round(2)
                 summary["avg_client_per_period"] = (
                     (summary["total_volume"] / summary["clients"].replace(0, 1) / k_int_cluster)
                     .round(2)
@@ -975,7 +977,6 @@ if uploaded_file_1 and uploaded_file_2:
                                         "pct": 0.0,
                                         "total_volume": 0,
                                         "avg_regularity": 0.0,
-                                        "avg_cluster_per_period": 0.0,
                                         "avg_client_per_period": 0.0,
                                     }]
                                 ),
@@ -993,7 +994,6 @@ if uploaded_file_1 and uploaded_file_2:
                                     "pct": 0.0,
                                     "total_volume": 0,
                                     "avg_regularity": 0.0,
-                                    "avg_cluster_per_period": 0.0,
                                     "avg_client_per_period": 0.0,
                                 }]
                             ),
@@ -1007,7 +1007,6 @@ if uploaded_file_1 and uploaded_file_2:
                 summary = summary.sort_values("__order").drop(columns=["__order"])
 
                 total_volume_all = per_client["volume"].sum()
-                avg_cluster_per_period_all = total_volume_all / k_int_cluster if k_int_cluster else 0
                 avg_client_per_period_all = total_volume_all / total_clients / k_int_cluster if (total_clients and k_int_cluster) else 0
                 avg_regularity_all = per_client["regularity"].mean()
                 row_итого = pd.DataFrame(
@@ -1016,7 +1015,6 @@ if uploaded_file_1 and uploaded_file_2:
                         "clients": total_clients,
                         "pct": 100.0,
                         "total_volume": int(total_volume_all),
-                        "avg_cluster_per_period": round(avg_cluster_per_period_all, 2),
                         "avg_client_per_period": round(avg_client_per_period_all, 2),
                         "avg_regularity": round(avg_regularity_all, 3),
                     }]
@@ -1025,40 +1023,83 @@ if uploaded_file_1 and uploaded_file_2:
                 summary["total_volume"] = summary["total_volume"].astype(int)
 
                 col_cluster = "Кластер"
-                col_sum = "Сумма объёма"
-                col_avg_cluster = f"Средний объём кластера в {period_unit}"
-                col_avg_client = f"Средний объём клиента в {period_unit}"
-                col_regularity = f"Регулярность покупки ({'месяцев' if is_months else 'недель'})"
-                # Форматируем % клиентов и Регулярность в процентах (строка "X.X%")
+                col_volume = "Объём продукта за период"
+                col_avg_client = f"Средний объём продукта на клиента в {period_unit}"
+                col_presence = f"Присутствие в {'месяцах' if is_months else 'неделях'} периода %"
+                # Форматируем % клиентов и присутствие в процентах
                 summary["pct_fmt"] = summary["pct"].round(1).astype(str) + "%"
                 reg_pct = summary["avg_regularity"].fillna(0) * 100
                 summary["regularity_fmt"] = reg_pct.round(1).astype(str) + "%"
 
+                def _criteria_text(name: str, v33: float, v67: float) -> str:
+                    v33s = f"{v33:.0f}" if v33 == int(v33) else f"{v33:.1f}"
+                    v67s = f"{v67:.0f}" if v67 == int(v67) else f"{v67:.1f}"
+                    if name == "Активные (VIP)":
+                        return f"Объём ≥ {v67s} ед. (верхняя треть), присутствие ≥ 66,7%."
+                    if name == "Регулярные с высоким объёмом":
+                        return f"Объём ≥ {v67s} ед., присутствие 33,3%–66,7%."
+                    if name == "Разовая крупная покупка":
+                        return f"Объём ≥ {v67s} ед., присутствие < 33,3%."
+                    if name == "Средняя активность":
+                        return f"Объём {v33s}–{v67s} ед. (средняя треть), присутствие ≥ 33,3%."
+                    if name == "Крупные нерегулярные":
+                        return f"Объём {v33s}–{v67s} ед., присутствие < 33,3%."
+                    if name == "Периодические (малый объём)":
+                        return f"Объём < {v33s} ед. (нижняя треть), присутствие ≥ 66,7%."
+                    if name == "Низкая активность":
+                        return f"Объём < {v33s} ед., присутствие 33,3%–66,7%."
+                    if name == "Разовая покупка":
+                        return f"Объём < {v33s} ед., присутствие < 33,3%."
+                    if name == "Не покупали":
+                        return "Нет покупок анализируемого продукта в выбранном окне."
+                    return ""
+
                 st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
-                # Таблица HTML: слева от названия кластера — значок вопроса с подсказкой, метрики в %
                 desc = CLUSTER_8_DESCRIPTIONS
                 rows_html = []
                 for _, r in summary.iterrows():
                     cluster_name = r["cluster"]
-                    tooltip = (desc.get(cluster_name, "") or "").replace('"', "&quot;")
+                    crit = _criteria_text(cluster_name, v33_val, v67_val)
+                    desc_t = (desc.get(cluster_name, "") or "").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    crit_esc = crit.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     if cluster_name == "Итого":
                         cell_cluster = "<strong>Итого</strong>"
                     else:
-                        cell_cluster = f'<span title="{tooltip}" style="cursor: help; margin-right: 4px;">❓</span>{cluster_name}'
+                        tip_content = f"{desc_t}<br><br><strong>Критерии отбора:</strong><br>{crit_esc}"
+                        cell_cluster = (
+                            f'<span class="cluster-tt-wrap">'
+                            f'<span class="cluster-tt-icon" title="">❓</span>'
+                            f'<span class="cluster-tt-box">{tip_content}</span>'
+                            f'</span>{cluster_name}'
+                        )
                     pct_val = r["pct_fmt"]
                     reg_val = r["regularity_fmt"]
                     rows_html.append(
                         f"<tr><td>{cell_cluster}</td><td>{int(r['clients'])}</td><td>{pct_val}</td>"
-                        f"<td>{int(r['total_volume'])}</td><td>{r['avg_cluster_per_period']:.2f}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
+                        f"<td>{int(r['total_volume'])}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
                     )
-                thead = f"<thead><tr><th>{col_cluster}</th><th>Клиентов</th><th>% клиентов</th><th>{col_sum}</th><th>{col_avg_cluster}</th><th>{col_avg_client}</th><th>{col_regularity}</th></tr></thead>"
+                thead = f"<thead><tr><th>{col_cluster}</th><th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_presence}</th></tr></thead>"
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
                 st.markdown(
                     f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
-                    '<style>.cluster-table {{ width: 100%; border-collapse: collapse; }} '
-                    '.cluster-table th, .cluster-table td {{ border: 1px solid #ddd; padding: 8px 10px; text-align: left; }} '
-                    '.cluster-table thead th {{ background: #f5f5f5; }} '
-                    '.cluster-table tbody tr:first-child td {{ background-color: #e85d04 !important; color: white !important; font-weight: bold; }} '
+                    '<style>'
+                    '.cluster-table-wrap {{ margin: 0.5rem 0; overflow-x: auto; }} '
+                    '.cluster-table {{ width: 100%; border-collapse: separate; border-spacing: 0; '
+                    'border: 1px solid #dee2e6; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }} '
+                    '.cluster-table th {{ background: linear-gradient(180deg, #495057 0%, #343a40 100%); color: #fff; '
+                    'font-weight: 600; padding: 12px 14px; text-align: left; font-size: 0.9rem; }} '
+                    '.cluster-table td {{ padding: 10px 14px; border-bottom: 1px solid #eee; background: #fff; }} '
+                    '.cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} '
+                    '.cluster-table tbody tr:first-child td {{ background: linear-gradient(90deg, #e85d04 0%, #d54d00 100%) !important; color: #fff !important; font-weight: bold; border-bottom-color: rgba(255,255,255,0.2); }} '
+                    '.cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} '
+                    '.cluster-tt-wrap {{ position: relative; display: inline-flex; align-items: center; margin-right: 6px; }} '
+                    '.cluster-tt-icon {{ cursor: help; font-size: 0.95rem; opacity: 0.85; }} '
+                    '.cluster-tt-icon:hover {{ opacity: 1; }} '
+                    '.cluster-tt-box {{ visibility: hidden; opacity: 0; position: absolute; left: 0; bottom: 100%; margin-bottom: 6px; '
+                    'background: #2d3748; color: #e2e8f0; padding: 10px 14px; border-radius: 8px; font-size: 0.8rem; line-height: 1.4; '
+                    'max-width: 320px; width: max-content; box-shadow: 0 4px 14px rgba(0,0,0,0.25); z-index: 1000; '
+                    'pointer-events: none; transition: opacity 0.2s, visibility 0.2s; }} '
+                    '.cluster-tt-wrap:hover .cluster-tt-box {{ visibility: visible; opacity: 1; }} '
                     '</style>',
                     unsafe_allow_html=True,
                 )
