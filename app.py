@@ -1025,31 +1025,38 @@ if uploaded_file_1 and uploaded_file_2:
                 col_cluster = "Кластер"
                 col_volume = "Объём продукта за период"
                 col_avg_client = f"Средний объём продукта на клиента в {period_unit}"
-                col_presence = f"Присутствие в {'месяцах' if is_months else 'неделях'} периода %"
-                # Форматируем % клиентов и присутствие в процентах
+                col_regularity = "Средняя регулярность покупки"
+                period_word_plural = "месяцев" if is_months else "недель"
+                days_per_period = 30 if is_months else 7
                 summary["pct_fmt"] = summary["pct"].round(1).astype(str) + "%"
-                reg_pct = summary["avg_regularity"].fillna(0) * 100
-                summary["regularity_fmt"] = reg_pct.round(1).astype(str) + "%"
 
-                def _criteria_text(name: str, v33: float, v67: float) -> str:
+                def _criteria_text(name: str, v33: float, v67: float, k: int, is_m: bool) -> str:
                     v33s = f"{v33:.0f}" if v33 == int(v33) else f"{v33:.1f}"
                     v67s = f"{v67:.0f}" if v67 == int(v67) else f"{v67:.1f}"
+                    pw = "месяцев" if is_m else "недель"
+                    dp = 30 if is_m else 7
+                    # Интервал в днях из доли: каждые (dp/доля) дней
+                    def _days(ratio: float) -> str:
+                        if ratio <= 0:
+                            return "—"
+                        d = round(dp / ratio)
+                        return f"{max(1, int(d))} дн."
                     if name == "Активные (VIP)":
-                        return f"Объём ≥ {v67s} ед. (верхняя треть), присутствие ≥ 66,7%."
+                        return f"Объём ≥ {v67s} ед. (верхняя треть). Присутствуют в ≥{max(1, round(2/3*k))} {pw} из {k} (≥67%). Приходят не реже чем каждые {_days(2/3)}."
                     if name == "Регулярные с высоким объёмом":
-                        return f"Объём ≥ {v67s} ед., присутствие 33,3%–66,7%."
+                        return f"Объём ≥ {v67s} ед. Присутствуют в 33–67% {pw} из {k}. Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
                     if name == "Разовая крупная покупка":
-                        return f"Объём ≥ {v67s} ед., присутствие < 33,3%."
+                        return f"Объём ≥ {v67s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)}."
                     if name == "Средняя активность":
-                        return f"Объём {v33s}–{v67s} ед. (средняя треть), присутствие ≥ 33,3%."
+                        return f"Объём {v33s}–{v67s} ед. (средняя треть). Присутствуют не реже 33% {pw} из {k}. Приходят не реже чем каждые {_days(1/3)}."
                     if name == "Крупные нерегулярные":
-                        return f"Объём {v33s}–{v67s} ед., присутствие < 33,3%."
+                        return f"Объём {v33s}–{v67s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)}."
                     if name == "Периодические (малый объём)":
-                        return f"Объём < {v33s} ед. (нижняя треть), присутствие ≥ 66,7%."
+                        return f"Объём < {v33s} ед. (нижняя треть). Присутствуют в ≥{max(1, round(2/3*k))} {pw} из {k} (≥67%). Приходят не реже чем каждые {_days(2/3)}."
                     if name == "Низкая активность":
-                        return f"Объём < {v33s} ед., присутствие 33,3%–66,7%."
+                        return f"Объём < {v33s} ед. Присутствуют в 33–67% {pw} из {k}. Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
                     if name == "Разовая покупка":
-                        return f"Объём < {v33s} ед., присутствие < 33,3%."
+                        return f"Объём < {v33s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)} или одна покупка."
                     if name == "Не покупали":
                         return "Нет покупок анализируемого продукта в выбранном окне."
                     return ""
@@ -1061,7 +1068,7 @@ if uploaded_file_1 and uploaded_file_2:
                 rows_html = []
                 for _, r in summary.iterrows():
                     cluster_name = r["cluster"]
-                    crit = _criteria_text(cluster_name, v33_val, v67_val)
+                    crit = _criteria_text(cluster_name, v33_val, v67_val, k_int_cluster, is_months)
                     desc_t = (desc.get(cluster_name, "") or "").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     crit_esc = crit.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     if cluster_name == "Итого":
@@ -1073,7 +1080,16 @@ if uploaded_file_1 and uploaded_file_2:
                         cell_desc = desc_t
                         cell_crit = crit_esc
                     pct_val = r["pct_fmt"]
-                    reg_val = r["regularity_fmt"]
+                    avg_r = r["avg_regularity"] if pd.notna(r["avg_regularity"]) else 0
+                    x_per = round(avg_r * k_int_cluster, 1)
+                    y_pct = round(avg_r * 100, 1)
+                    line1 = f"Присутствуют в {x_per} {period_word_plural} из {k_int_cluster} ({y_pct}%)"
+                    if avg_r > 0.001:
+                        z_days = max(1, round(days_per_period / avg_r))
+                        line2 = f"Приходят в среднем каждые {z_days} дн."
+                    else:
+                        line2 = "Приходят редко или одна покупка"
+                    reg_val = f"{line1}<br>{line2}"
                     rows_html.append(
                         f"<tr><td>{cell_cluster}</td><td>{cell_desc}</td><td>{cell_crit}</td>"
                         f"<td>{int(r['clients'])}</td><td>{pct_val}</td>"
@@ -1082,7 +1098,7 @@ if uploaded_file_1 and uploaded_file_2:
                 thead = (
                     f"<thead><tr>"
                     f"<th>{col_cluster}</th><th>{col_desc}</th><th>{col_criteria}</th>"
-                    f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_presence}</th>"
+                    f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_regularity}</th>"
                     f"</tr></thead>"
                 )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
