@@ -1054,6 +1054,8 @@ if uploaded_file_1 and uploaded_file_2:
                         return "Нет покупок анализируемого продукта в выбранном окне."
                     return ""
 
+                col_desc = "Описание"
+                col_criteria = "Критерии отбора"
                 st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
                 desc = CLUSTER_8_DESCRIPTIONS
                 rows_html = []
@@ -1064,43 +1066,41 @@ if uploaded_file_1 and uploaded_file_2:
                     crit_esc = crit.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     if cluster_name == "Итого":
                         cell_cluster = "<strong>Итого</strong>"
+                        cell_desc = "—"
+                        cell_crit = "—"
                     else:
-                        tip_content = f"{desc_t}<br><br><strong>Критерии отбора:</strong><br>{crit_esc}"
-                        cell_cluster = (
-                            f'<span class="cluster-tt-wrap">'
-                            f'<span class="cluster-tt-icon" title="">❓</span>'
-                            f'<span class="cluster-tt-box">{tip_content}</span>'
-                            f'</span>{cluster_name}'
-                        )
+                        cell_cluster = cluster_name
+                        cell_desc = desc_t
+                        cell_crit = crit_esc
                     pct_val = r["pct_fmt"]
                     reg_val = r["regularity_fmt"]
                     rows_html.append(
-                        f"<tr><td>{cell_cluster}</td><td>{int(r['clients'])}</td><td>{pct_val}</td>"
+                        f"<tr><td>{cell_cluster}</td><td>{cell_desc}</td><td>{cell_crit}</td>"
+                        f"<td>{int(r['clients'])}</td><td>{pct_val}</td>"
                         f"<td>{int(r['total_volume'])}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
                     )
-                thead = f"<thead><tr><th>{col_cluster}</th><th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_presence}</th></tr></thead>"
+                thead = (
+                    f"<thead><tr>"
+                    f"<th>{col_cluster}</th><th>{col_desc}</th><th>{col_criteria}</th>"
+                    f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_presence}</th>"
+                    f"</tr></thead>"
+                )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
                 st.markdown(
                     f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
                     '<style>'
-                    '.cluster-table-wrap {{ margin: 0.5rem 0; overflow-x: auto; overflow-y: visible; }} '
+                    '.cluster-table-wrap {{ margin: 0.5rem 0; overflow-x: auto; }} '
                     '.cluster-table {{ width: 100%; border-collapse: separate; border-spacing: 0; '
                     'border: 1px solid #dee2e6; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }} '
-                    '.cluster-table th {{ background: linear-gradient(180deg, #495057 0%, #343a40 100%); color: #fff; '
-                    'font-weight: 600; padding: 12px 14px; text-align: left; font-size: 0.9rem; }} '
+                    '.cluster-table th {{ position: sticky; top: 0; z-index: 10; '
+                    'background: linear-gradient(180deg, #495057 0%, #343a40 100%); color: #fff; '
+                    'font-weight: 600; padding: 12px 14px; text-align: left; font-size: 0.9rem; '
+                    'box-shadow: 0 2px 2px rgba(0,0,0,0.15); }} '
                     '.cluster-table td {{ padding: 10px 14px; border-bottom: 1px solid #eee; background: #fff; }} '
+                    '.cluster-table td:nth-child(2), .cluster-table td:nth-child(3) {{ max-width: 280px; font-size: 0.85rem; color: #444; }} '
                     '.cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} '
                     '.cluster-table tbody tr:first-child td {{ background: linear-gradient(90deg, #e85d04 0%, #d54d00 100%) !important; color: #fff !important; font-weight: bold; border-bottom-color: rgba(255,255,255,0.2); }} '
                     '.cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} '
-                    '.cluster-table td:first-child {{ overflow: visible; }} '
-                    '.cluster-tt-wrap {{ position: relative; display: inline-flex; align-items: center; margin-right: 6px; vertical-align: middle; }} '
-                    '.cluster-tt-icon {{ cursor: help; font-size: 0.95rem; opacity: 0.85; }} '
-                    '.cluster-tt-icon:hover {{ opacity: 1; }} '
-                    '.cluster-tt-box {{ display: none; position: absolute; left: 0; bottom: 100%; margin-bottom: 6px; '
-                    'background: #2d3748; color: #e2e8f0; padding: 10px 14px; border-radius: 8px; font-size: 0.8rem; line-height: 1.4; '
-                    'max-width: 320px; width: max-content; box-shadow: 0 4px 14px rgba(0,0,0,0.25); z-index: 9999; '
-                    'pointer-events: none; white-space: normal; }} '
-                    '.cluster-tt-wrap:hover .cluster-tt-box {{ display: block; }} '
                     '</style>',
                     unsafe_allow_html=True,
                 )
