@@ -945,55 +945,72 @@ if uploaded_file_1 and uploaded_file_2:
                 # Итоговая таблица по кластерам
                 total_clients = len(per_client)
                 k_int_cluster = int(k_periods_cluster)
+                period_unit = "месяц" if is_months else "неделю"
                 summary = (
                     per_client.groupby("cluster", dropna=False)
                     .agg(
                         clients=("client_id", "count"),
                         pct=("client_id", lambda s: 100.0 * len(s) / total_clients if total_clients else 0.0),
                         total_volume=("volume", "sum"),
-                        avg_volume=("volume", "mean"),
                         avg_regularity=("regularity", "mean"),
                     )
                     .reset_index()
                 )
-                # Средний объём в неделю по кластеру: сумма объёма кластера / K периодов
-                summary["avg_volume_per_period"] = (summary["total_volume"] / k_int_cluster).round(2)
-                # Сортировка по убыванию объёма (сначала кластеры с большим total_volume, «Не покупали» в конце)
+                # Средний объём кластера в неделю/месяц: сумма объёма кластера / K периодов
+                summary["avg_cluster_per_period"] = (summary["total_volume"] / k_int_cluster).round(2)
+                # Средний объём клиента в неделю/месяц: (сумма объёма кластера / число клиентов) / K
+                summary["avg_client_per_period"] = (
+                    (summary["total_volume"] / summary["clients"].replace(0, 1) / k_int_cluster)
+                    .round(2)
+                )
+                # Сортировка по убыванию объёма («Не покупали» в конце)
                 summary["__sort_vol"] = summary["total_volume"]
                 summary.loc[summary["cluster"] == "Не покупали", "__sort_vol"] = -1
                 summary = summary.sort_values("__sort_vol", ascending=False).drop(columns=["__sort_vol"])
                 summary["pct"] = summary["pct"].round(1)
                 summary["total_volume"] = summary["total_volume"].astype(int)
-                summary["avg_volume"] = summary["avg_volume"].round(2)
-                summary["avg_regularity"] = summary["avg_regularity"].round(3)
 
                 total_volume_all = per_client["volume"].sum()
-                avg_per_week_all = total_volume_all / k_int_cluster if k_int_cluster else 0
-
-                st.caption("Итого по выбранным когортам и периоду")
-                st.markdown(
-                    f"**Всего клиентов:** {total_clients} · **Сумма объёма анализируемого продукта:** {int(total_volume_all)} ед. · "
-                    f"**Средний объём в неделю/месяц:** {avg_per_week_all:.2f} ед."
+                avg_cluster_per_period_all = total_volume_all / k_int_cluster if k_int_cluster else 0
+                avg_client_per_period_all = total_volume_all / total_clients / k_int_cluster if (total_clients and k_int_cluster) else 0
+                row_итого = pd.DataFrame(
+                    [{
+                        "cluster": "Итого",
+                        "clients": total_clients,
+                        "pct": 100.0,
+                        "total_volume": int(total_volume_all),
+                        "avg_cluster_per_period": round(avg_cluster_per_period_all, 2),
+                        "avg_client_per_period": round(avg_client_per_period_all, 2),
+                        "avg_regularity": np.nan,
+                    }]
                 )
+                summary = pd.concat([summary, row_итого], ignore_index=True)
+
+                col_cluster = "Кластер"
+                col_sum = "Сумма объёма"
+                col_avg_cluster = f"Средний объём кластера в {period_unit}"
+                col_avg_client = f"Средний объём клиента в {period_unit}"
+                display_df = summary.rename(
+                    columns={
+                        "cluster": col_cluster,
+                        "clients": "Клиентов",
+                        "pct": "% клиентов",
+                        "total_volume": col_sum,
+                        "avg_cluster_per_period": col_avg_cluster,
+                        "avg_client_per_period": col_avg_client,
+                    }
+                )[[col_cluster, "Клиентов", "% клиентов", col_sum, col_avg_cluster, col_avg_client]]
                 st.dataframe(
-                    summary.rename(
-                        columns={
-                            "cluster": "Кластер",
-                            "clients": "Клиентов",
-                            "pct": "% клиентов",
-                            "total_volume": "Сумма объёма (ед.)",
-                            "avg_volume": "Средний объём",
-                            "avg_volume_per_period": "Средний объём в неделю/месяц",
-                            "avg_regularity": "Средняя регулярность",
-                        }
-                    ),
+                    display_df,
                     use_container_width=True,
                     height="content",
+                    hide_index=True,
                 )
 
-                # График долей клиентов по кластерам (порядок осей как в таблице — по убыванию объёма)
+                # График долей клиентов по кластерам (без строки Итого)
+                summary_chart = summary[summary["cluster"] != "Итого"]
                 fig_clusters = px.bar(
-                    summary,
+                    summary_chart,
                     x="cluster",
                     y="pct",
                     text="pct",
@@ -1008,7 +1025,7 @@ if uploaded_file_1 and uploaded_file_2:
                     uniformtext_minsize=10,
                     uniformtext_mode="hide",
                 )
-                fig_clusters.update_yaxes(range=[0, max(5, float(summary["pct"].max() or 0) * 1.2)])
+                fig_clusters.update_yaxes(range=[0, max(5, float(summary_chart["pct"].max() or 0) * 1.2)])
                 st.plotly_chart(fig_clusters, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
