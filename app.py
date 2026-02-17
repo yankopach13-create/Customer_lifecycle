@@ -969,10 +969,12 @@ if uploaded_file_1 and uploaded_file_2:
                 summary = summary.sort_values("__sort_vol", ascending=False).drop(columns=["__sort_vol"])
                 summary["pct"] = summary["pct"].round(1)
                 summary["total_volume"] = summary["total_volume"].astype(int)
+                summary["avg_regularity"] = summary["avg_regularity"].round(3)
 
                 total_volume_all = per_client["volume"].sum()
                 avg_cluster_per_period_all = total_volume_all / k_int_cluster if k_int_cluster else 0
                 avg_client_per_period_all = total_volume_all / total_clients / k_int_cluster if (total_clients and k_int_cluster) else 0
+                avg_regularity_all = per_client["regularity"].mean()
                 row_итого = pd.DataFrame(
                     [{
                         "cluster": "Итого",
@@ -981,15 +983,17 @@ if uploaded_file_1 and uploaded_file_2:
                         "total_volume": int(total_volume_all),
                         "avg_cluster_per_period": round(avg_cluster_per_period_all, 2),
                         "avg_client_per_period": round(avg_client_per_period_all, 2),
-                        "avg_regularity": np.nan,
+                        "avg_regularity": round(avg_regularity_all, 3),
                     }]
                 )
-                summary = pd.concat([summary, row_итого], ignore_index=True)
+                # Итого — первая строка таблицы
+                summary = pd.concat([row_итого, summary], ignore_index=True)
 
                 col_cluster = "Кластер"
                 col_sum = "Сумма объёма"
                 col_avg_cluster = f"Средний объём кластера в {period_unit}"
                 col_avg_client = f"Средний объём клиента в {period_unit}"
+                col_regularity = f"Регулярность покупки ({'месяцев' if is_months else 'недель'})"
                 display_df = summary.rename(
                     columns={
                         "cluster": col_cluster,
@@ -998,34 +1002,32 @@ if uploaded_file_1 and uploaded_file_2:
                         "total_volume": col_sum,
                         "avg_cluster_per_period": col_avg_cluster,
                         "avg_client_per_period": col_avg_client,
+                        "avg_regularity": col_regularity,
                     }
-                )[[col_cluster, "Клиентов", "% клиентов", col_sum, col_avg_cluster, col_avg_client]]
+                )[[col_cluster, "Клиентов", "% клиентов", col_sum, col_avg_cluster, col_avg_client, col_regularity]]
+
+                st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
                 st.dataframe(
                     display_df,
                     use_container_width=True,
                     height="content",
                     hide_index=True,
+                    column_config={
+                        col_cluster: st.column_config.TextColumn(col_cluster, width="medium"),
+                    },
                 )
-
-                # График долей клиентов по кластерам (без строки Итого)
-                summary_chart = summary[summary["cluster"] != "Итого"]
-                fig_clusters = px.bar(
-                    summary_chart,
-                    x="cluster",
-                    y="pct",
-                    text="pct",
-                    title="Доля клиентов по кластерам, %",
+                # Выделение строки Итого: стилизация через HTML-таблицу поверх не поддерживается, показываем подсказку и применяем CSS к первому ряду данных
+                st.markdown(
+                    """
+                    <style>
+                    div[data-testid="stDataFrame"] table tbody tr:first-child td {
+                        background-color: #e85d04 !important;
+                        color: white !important;
+                        font-weight: bold !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
                 )
-                fig_clusters.update_traces(texttemplate="%{text}%", textposition="outside")
-                fig_clusters.update_layout(
-                    template="plotly_white",
-                    xaxis_title="Кластер",
-                    yaxis_title="% клиентов",
-                    margin=dict(t=60, b=40, l=40, r=20),
-                    uniformtext_minsize=10,
-                    uniformtext_mode="hide",
-                )
-                fig_clusters.update_yaxes(range=[0, max(5, float(summary_chart["pct"].max() or 0) * 1.2)])
-                st.plotly_chart(fig_clusters, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
