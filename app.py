@@ -18,6 +18,29 @@ COL_PERIOD_SUB = "period_sub"
 COL_QUANTITY = "quantity"
 COL_CLIENT = "client_id"
 
+# 8 поведенческих кластеров: порядок по убыванию активности, название → описание
+CLUSTER_8_ORDER = [
+    "Активные (VIP)",
+    "Регулярные с высоким объёмом",
+    "Крупные нерегулярные",
+    "Средняя активность",
+    "Периодические (малый объём)",
+    "Низкая активность",
+    "Разовая крупная покупка",
+    "Разовая покупка",
+]
+CLUSTER_8_DESCRIPTIONS = {
+    "Активные (VIP)": "Высокий объём покупок и высокая регулярность: покупают часто и много.",
+    "Регулярные с высоким объёмом": "Высокий объём и стабильная регулярность: постоянные крупные покупатели.",
+    "Крупные нерегулярные": "Высокий объём, но покупают не в каждый период: крупные, но редкие покупки.",
+    "Средняя активность": "Средний объём и средняя регулярность: умеренная вовлечённость.",
+    "Периодические (малый объём)": "Низкий объём, но покупают часто: стабильные малые покупки.",
+    "Низкая активность": "Низкий объём и невысокая регулярность: эпизодические малые покупки.",
+    "Разовая крупная покупка": "Высокий объём за один или два периода: разовая крупная сделка.",
+    "Разовая покупка": "Низкий объём и одна-две покупки: попробовали продукт.",
+    "Не покупали": "В выбранном окне не покупали анализируемый продукт.",
+}
+
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
     """Приводит коды клиентов к одному строковому виду (348385 и 348385.0 → одинаково)."""
@@ -887,62 +910,40 @@ if uploaded_file_1 and uploaded_file_2:
                 denom = per_client["available_periods"].replace(0, 1)
                 per_client["regularity"] = (per_client["active_periods"] / denom).clip(0, 1).astype(float)
 
-                # Кластеризация: клиентов без покупок выводим отдельной группой «Не покупали»
+                # Назначение одному из 8 поведенческих кластеров по объёму и регулярности (правила по перцентилям)
                 per_client["cluster"] = "Не покупали"
                 df_fit = per_client[per_client["volume"] > 0].copy()
+                if not df_fit.empty:
+                    v33 = df_fit["volume"].quantile(1 / 3)
+                    v67 = df_fit["volume"].quantile(2 / 3)
+                    r33 = 1 / 3
+                    r67 = 2 / 3
 
-                if df_fit.empty:
-                    st.info("Ни один клиент в выбранных когортах не покупал выбранный продукт в заданном окне.")
-                else:
-                    n_clusters = min(3, max(1, len(df_fit)))
-                    if len(df_fit) < n_clusters:
-                        n_clusters = len(df_fit)
-                    try:
-                        from sklearn.cluster import KMeans
-                        from sklearn.preprocessing import StandardScaler
-                    except Exception:
-                        st.error(
-                            "Для кластерного анализа нужен пакет scikit-learn. "
-                            "Установите зависимости из requirements.txt и перезапустите приложение."
-                        )
-                        st.stop()
+                    def _assign_cluster(row):
+                        v, r = row["volume"], row["regularity"]
+                        if v >= v67:
+                            if r >= r67:
+                                return "Активные (VIP)"
+                            if r >= r33:
+                                return "Регулярные с высоким объёмом"
+                            return "Разовая крупная покупка"
+                        if v >= v33:
+                            if r >= r67:
+                                return "Средняя активность"
+                            if r >= r33:
+                                return "Средняя активность"
+                            return "Крупные нерегулярные"
+                        if r >= r67:
+                            return "Периодические (малый объём)"
+                        if r >= r33:
+                            return "Низкая активность"
+                        return "Разовая покупка"
 
-                    X = np.column_stack(
-                        [
-                            np.log1p(df_fit["volume"].astype(float).to_numpy()),
-                            df_fit["regularity"].astype(float).to_numpy(),
-                        ]
-                    )
-                    Xs = StandardScaler().fit_transform(X)
-                    km = KMeans(
-                        n_clusters=n_clusters,
-                        random_state=42,
-                        n_init="auto",
-                    )
-                    labels = km.fit_predict(Xs)
-                    df_fit["_cluster_id"] = labels
-
-                    # Словесные названия по медианному объёму (от низкого к высокому для соответствия order)
-                    order = (
-                        df_fit.groupby("_cluster_id")["volume"]
-                        .median()
-                        .sort_values()
-                        .index.tolist()
-                    )
-                    if n_clusters == 1:
-                        names_by_volume = ["Покупатели"]
-                    elif n_clusters == 2:
-                        names_by_volume = ["Низкий объём", "Высокий объём"]
-                    else:
-                        names_by_volume = ["Низкий объём", "Средний объём", "Высокий объём"]
-                    id_to_name = {old: names_by_volume[i] for i, old in enumerate(order) if i < len(names_by_volume)}
-                    df_fit["cluster"] = df_fit["_cluster_id"].map(lambda x: id_to_name.get(x, "Покупатели"))
-
+                    df_fit["cluster"] = df_fit.apply(_assign_cluster, axis=1)
                     per_client = per_client.merge(df_fit[["client_id", "cluster"]], on="client_id", how="left", suffixes=("", "_fit"))
                     per_client["cluster"] = per_client["cluster_fit"].fillna(per_client["cluster"])
                     per_client = per_client.drop(columns=["cluster_fit"], errors="ignore")
 
-                # Итоговая таблица по кластерам
                 total_clients = len(per_client)
                 k_int_cluster = int(k_periods_cluster)
                 period_unit = "месяц" if is_months else "неделю"
@@ -956,20 +957,54 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                     .reset_index()
                 )
-                # Средний объём кластера в неделю/месяц: сумма объёма кластера / K периодов
                 summary["avg_cluster_per_period"] = (summary["total_volume"] / k_int_cluster).round(2)
-                # Средний объём клиента в неделю/месяц: (сумма объёма кластера / число клиентов) / K
                 summary["avg_client_per_period"] = (
                     (summary["total_volume"] / summary["clients"].replace(0, 1) / k_int_cluster)
                     .round(2)
                 )
-                # Сортировка по убыванию объёма («Не покупали» в конце)
-                summary["__sort_vol"] = summary["total_volume"]
-                summary.loc[summary["cluster"] == "Не покупали", "__sort_vol"] = -1
-                summary = summary.sort_values("__sort_vol", ascending=False).drop(columns=["__sort_vol"])
-                summary["pct"] = summary["pct"].round(1)
-                summary["total_volume"] = summary["total_volume"].astype(int)
-                summary["avg_regularity"] = summary["avg_regularity"].round(3)
+                # Всегда 8 поведенческих кластеров + Не покупали; недостающие — 0
+                for c in CLUSTER_8_ORDER:
+                    if c not in summary["cluster"].values:
+                        summary = pd.concat(
+                            [
+                                summary,
+                                pd.DataFrame(
+                                    [{
+                                        "cluster": c,
+                                        "clients": 0,
+                                        "pct": 0.0,
+                                        "total_volume": 0,
+                                        "avg_regularity": 0.0,
+                                        "avg_cluster_per_period": 0.0,
+                                        "avg_client_per_period": 0.0,
+                                    }]
+                                ),
+                            ],
+                            ignore_index=True,
+                        )
+                if "Не покупали" not in summary["cluster"].values:
+                    summary = pd.concat(
+                        [
+                            summary,
+                            pd.DataFrame(
+                                [{
+                                    "cluster": "Не покупали",
+                                    "clients": 0,
+                                    "pct": 0.0,
+                                    "total_volume": 0,
+                                    "avg_regularity": 0.0,
+                                    "avg_cluster_per_period": 0.0,
+                                    "avg_client_per_period": 0.0,
+                                }]
+                            ),
+                        ],
+                        ignore_index=True,
+                    )
+                # Порядок: по убыванию активности (8 кластеров), затем «Не покупали»
+                order_map = {name: i for i, name in enumerate(CLUSTER_8_ORDER)}
+                order_map["Не покупали"] = 999
+                summary["__order"] = summary["cluster"].map(lambda x: order_map.get(x, 500))
+                summary = summary.sort_values("__order").drop(columns=["__order"])
 
                 total_volume_all = per_client["volume"].sum()
                 avg_cluster_per_period_all = total_volume_all / k_int_cluster if k_int_cluster else 0
@@ -986,47 +1021,45 @@ if uploaded_file_1 and uploaded_file_2:
                         "avg_regularity": round(avg_regularity_all, 3),
                     }]
                 )
-                # Итого — первая строка таблицы
                 summary = pd.concat([row_итого, summary], ignore_index=True)
+                summary["total_volume"] = summary["total_volume"].astype(int)
 
                 col_cluster = "Кластер"
                 col_sum = "Сумма объёма"
                 col_avg_cluster = f"Средний объём кластера в {period_unit}"
                 col_avg_client = f"Средний объём клиента в {period_unit}"
                 col_regularity = f"Регулярность покупки ({'месяцев' if is_months else 'недель'})"
-                display_df = summary.rename(
-                    columns={
-                        "cluster": col_cluster,
-                        "clients": "Клиентов",
-                        "pct": "% клиентов",
-                        "total_volume": col_sum,
-                        "avg_cluster_per_period": col_avg_cluster,
-                        "avg_client_per_period": col_avg_client,
-                        "avg_regularity": col_regularity,
-                    }
-                )[[col_cluster, "Клиентов", "% клиентов", col_sum, col_avg_cluster, col_avg_client, col_regularity]]
+                # Форматируем % клиентов и Регулярность в процентах (строка "X.X%")
+                summary["pct_fmt"] = summary["pct"].round(1).astype(str) + "%"
+                reg_pct = summary["avg_regularity"].fillna(0) * 100
+                summary["regularity_fmt"] = reg_pct.round(1).astype(str) + "%"
 
                 st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    height="content",
-                    hide_index=True,
-                    column_config={
-                        col_cluster: st.column_config.TextColumn(col_cluster, width="medium"),
-                    },
-                )
-                # Выделение строки Итого: стилизация через HTML-таблицу поверх не поддерживается, показываем подсказку и применяем CSS к первому ряду данных
+                # Таблица HTML: слева от названия кластера — значок вопроса с подсказкой, метрики в %
+                desc = CLUSTER_8_DESCRIPTIONS
+                rows_html = []
+                for _, r in summary.iterrows():
+                    cluster_name = r["cluster"]
+                    tooltip = (desc.get(cluster_name, "") or "").replace('"', "&quot;")
+                    if cluster_name == "Итого":
+                        cell_cluster = "<strong>Итого</strong>"
+                    else:
+                        cell_cluster = f'<span title="{tooltip}" style="cursor: help; margin-right: 4px;">❓</span>{cluster_name}'
+                    pct_val = r["pct_fmt"]
+                    reg_val = r["regularity_fmt"]
+                    rows_html.append(
+                        f"<tr><td>{cell_cluster}</td><td>{int(r['clients'])}</td><td>{pct_val}</td>"
+                        f"<td>{int(r['total_volume'])}</td><td>{r['avg_cluster_per_period']:.2f}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
+                    )
+                thead = f"<thead><tr><th>{col_cluster}</th><th>Клиентов</th><th>% клиентов</th><th>{col_sum}</th><th>{col_avg_cluster}</th><th>{col_avg_client}</th><th>{col_regularity}</th></tr></thead>"
+                tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
                 st.markdown(
-                    """
-                    <style>
-                    div[data-testid="stDataFrame"] table tbody tr:first-child td {
-                        background-color: #e85d04 !important;
-                        color: white !important;
-                        font-weight: bold !important;
-                    }
-                    </style>
-                    """,
+                    f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
+                    '<style>.cluster-table {{ width: 100%; border-collapse: collapse; }} '
+                    '.cluster-table th, .cluster-table td {{ border: 1px solid #ddd; padding: 8px 10px; text-align: left; }} '
+                    '.cluster-table thead th {{ background: #f5f5f5; }} '
+                    '.cluster-table tbody tr:first-child td {{ background-color: #e85d04 !important; color: white !important; font-weight: bold; }} '
+                    '</style>',
                     unsafe_allow_html=True,
                 )
     else:
