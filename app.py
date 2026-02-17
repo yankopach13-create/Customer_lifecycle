@@ -6,6 +6,7 @@ Streamlit-приложение для загрузки отчётов из Qlik 
 import re
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -757,5 +758,255 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                 else:
                     st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
+
+        # --- Блок «Кластерный анализ» ---
+        st.divider()
+        st.subheader("Кластерный анализ")
+        st.caption("Сегментация клиентов по объёму покупок и регулярности покупок выбранного продукта в первые K периодов после когорты.")
+
+        col_cohorts_cl, col_analyzed_cl, col_params_cl = st.columns([1, 1, 1])
+        with col_cohorts_cl:
+            cohort_start_cluster = st.selectbox(
+                "С когорты",
+                options=cohort_labels,
+                index=0,
+                key="cluster_cohort_start",
+            )
+            cohort_end_cluster = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="cluster_cohort_end",
+            )
+        with col_analyzed_cl:
+            selected_categories_cluster = st.multiselect(
+                "Анализируемый продукт",
+                options=all_categories,
+                default=categories_from_doc1,
+                key="cluster_categories",
+                help="Категории, по которым считаются объём и регулярность покупок для кластеризации.",
+            )
+        with col_params_cl:
+            k_periods_cluster = st.number_input(
+                "Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="cluster_k_periods",
+            )
+            n_clusters = st.number_input(
+                "Количество кластеров (без учёта группы «Не покупали»)",
+                min_value=2,
+                max_value=8,
+                value=3,
+                step=1,
+                key="cluster_n_clusters",
+            )
+
+        idx_start_c = cohort_labels.index(cohort_start_cluster)
+        idx_end_c = cohort_labels.index(cohort_end_cluster)
+        if idx_start_c <= idx_end_c:
+            cohorts_to_use_c = cohort_labels[idx_start_c : idx_end_c + 1]
+        else:
+            cohorts_to_use_c = cohort_labels[idx_end_c : idx_start_c + 1]
+
+        if not cohorts_to_use_c:
+            st.caption("Выберите хотя бы одну когорту для кластеризации.")
+        elif not selected_categories_cluster:
+            st.warning("Выберите анализируемый продукт для кластеризации.")
+        else:
+            # Клиенты выбранных когорт (нормализованный id): определяются по документу 1 (якорный продукт когорт)
+            cohort_clients_c = set()
+            for lb in cohorts_to_use_c:
+                r = cohort_ranks[lb]
+                pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
+                pm, ps = str(pm).strip(), str(ps).strip()
+                clients_r = df1[
+                    (df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm)
+                    & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)
+                ][COL_CLIENT]
+                cohort_clients_c.update(_norm_client_id(clients_r).tolist())
+
+            if not cohort_clients_c:
+                st.info("В выбранных когортах нет клиентов (по документу 1).")
+            else:
+                # Для каждого клиента — его период когорты (min period_rank по документу 1)
+                df1_cr = df1_with_period.copy()
+                df1_cr["_client_norm"] = _norm_client_id(df1_cr[COL_CLIENT])
+                df1_cr = df1_cr[df1_cr["_client_norm"].isin(cohort_clients_c)]
+                client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min()
+
+                # Сколько периодов доступно для наблюдения (для поздних когорт окно может упираться в конец данных)
+                max_rank = int(period_order["period_rank"].max())
+                k_int = int(k_periods_cluster)
+                available_periods = (max_rank - client_cohort_rank + 1).clip(lower=0, upper=k_int).astype(int)
+
+                # Собираем покупки анализируемого продукта из документа 1 и/или документа 2
+                selected_in_doc1_c = [c for c in selected_categories_cluster if c in categories_from_doc1_set]
+                selected_in_doc2_c = [c for c in selected_categories_cluster if c in set(categories_from_doc2)]
+
+                def _filter_to_dynamic_window(df_src: pd.DataFrame) -> pd.DataFrame:
+                    """Фильтрует строки когорты в окне [cohort_rank, cohort_rank + K)."""
+                    tmp = df_src.copy()
+                    tmp["_client_norm"] = _norm_client_id(tmp[COL_CLIENT])
+                    tmp = tmp[tmp["_client_norm"].isin(cohort_clients_c)]
+                    r0 = tmp["_client_norm"].map(client_cohort_rank)
+                    delta = tmp["period_rank"] - r0
+                    mask = delta.notna() & tmp["period_rank"].notna() & (delta >= 0) & (delta < k_int)
+                    return tmp.loc[mask, ["_client_norm", "period_rank", COL_QUANTITY]]
+
+                parts_p = []
+                if selected_in_doc1_c:
+                    parts_p.append(
+                        _filter_to_dynamic_window(
+                            df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_c)]
+                        )
+                    )
+                if selected_in_doc2_c:
+                    parts_p.append(
+                        _filter_to_dynamic_window(
+                            df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_c)]
+                        )
+                    )
+
+                if parts_p:
+                    df_p = pd.concat(parts_p, ignore_index=True)
+                else:
+                    df_p = pd.DataFrame(columns=["_client_norm", "period_rank", COL_QUANTITY])
+
+                # Метрики по клиенту: объём и регулярность (доля периодов с покупкой)
+                per_client = pd.DataFrame({"client_id": sorted(cohort_clients_c)})
+                per_client["cohort_rank"] = per_client["client_id"].map(client_cohort_rank).astype("float")
+                per_client["available_periods"] = per_client["client_id"].map(available_periods).fillna(k_int).astype(int)
+
+                if not df_p.empty:
+                    agg = (
+                        df_p.groupby("_client_norm")
+                        .agg(
+                            volume=(COL_QUANTITY, "sum"),
+                            active_periods=("period_rank", "nunique"),
+                        )
+                        .reset_index()
+                        .rename(columns={"_client_norm": "client_id"})
+                    )
+                    per_client = per_client.merge(agg, on="client_id", how="left")
+                per_client["volume"] = per_client["volume"].fillna(0).astype(int)
+                per_client["active_periods"] = per_client["active_periods"].fillna(0).astype(int)
+                denom = per_client["available_periods"].replace(0, 1)
+                per_client["regularity"] = (per_client["active_periods"] / denom).clip(0, 1).astype(float)
+
+                # Кластеризация: клиентов без покупок выводим отдельной группой «Не покупали»
+                per_client["cluster"] = "Не покупали"
+                df_fit = per_client[per_client["volume"] > 0].copy()
+
+                if df_fit.empty:
+                    st.info("Ни один клиент в выбранных когортах не покупал выбранный продукт в заданном окне.")
+                else:
+                    if len(df_fit) < int(n_clusters):
+                        st.warning(
+                            f"Недостаточно клиентов с покупками для {int(n_clusters)} кластеров: "
+                            f"{len(df_fit)} клиентов. Уменьшите количество кластеров или расширьте когорты."
+                        )
+                    else:
+                        try:
+                            from sklearn.cluster import KMeans
+                            from sklearn.preprocessing import StandardScaler
+                        except Exception as e:
+                            st.error(
+                                "Для кластерного анализа нужен пакет scikit-learn. "
+                                "Установите зависимости из requirements.txt и перезапустите приложение."
+                            )
+                            st.stop()
+
+                        X = np.column_stack(
+                            [
+                                np.log1p(df_fit["volume"].astype(float).to_numpy()),
+                                df_fit["regularity"].astype(float).to_numpy(),
+                            ]
+                        )
+                        Xs = StandardScaler().fit_transform(X)
+                        km = KMeans(
+                            n_clusters=int(n_clusters),
+                            random_state=42,
+                            n_init="auto",
+                        )
+                        labels = km.fit_predict(Xs)
+                        df_fit["_cluster_id"] = labels
+
+                        # Упорядочим кластеры по медианному объёму (низкий → высокий) для стабильных подписей
+                        order = (
+                            df_fit.groupby("_cluster_id")["volume"]
+                            .median()
+                            .sort_values()
+                            .index.tolist()
+                        )
+                        id_map = {old: i + 1 for i, old in enumerate(order)}
+                        df_fit["cluster"] = df_fit["_cluster_id"].map(lambda x: f"Кластер {id_map.get(x, x)}")
+
+                        per_client = per_client.merge(df_fit[["client_id", "cluster"]], on="client_id", how="left", suffixes=("", "_fit"))
+                        per_client["cluster"] = per_client["cluster_fit"].fillna(per_client["cluster"])
+                        per_client = per_client.drop(columns=["cluster_fit"], errors="ignore")
+
+                # Итоговая таблица по кластерам
+                total_clients = len(per_client)
+                summary = (
+                    per_client.groupby("cluster", dropna=False)
+                    .agg(
+                        clients=("client_id", "count"),
+                        pct=("client_id", lambda s: 100.0 * len(s) / total_clients if total_clients else 0.0),
+                        avg_volume=("volume", "mean"),
+                        median_volume=("volume", "median"),
+                        avg_regularity=("regularity", "mean"),
+                    )
+                    .reset_index()
+                )
+                # Сортировка: «Не покупали» первым, далее кластеры по номеру
+                def _cluster_sort_key(x: str) -> tuple:
+                    if x == "Не покупали":
+                        return (0, 0)
+                    m = re.search(r"\d+", str(x))
+                    return (1, int(m.group(0)) if m else 999)
+
+                summary["__sort"] = summary["cluster"].map(_cluster_sort_key)
+                summary = summary.sort_values("__sort").drop(columns=["__sort"])
+                summary["pct"] = summary["pct"].round(1)
+                summary["avg_volume"] = summary["avg_volume"].round(2)
+                summary["median_volume"] = summary["median_volume"].round(2)
+                summary["avg_regularity"] = summary["avg_regularity"].round(3)
+
+                st.dataframe(
+                    summary.rename(
+                        columns={
+                            "cluster": "Кластер",
+                            "clients": "Клиентов",
+                            "pct": "% клиентов",
+                            "avg_volume": "Средний объём",
+                            "median_volume": "Медианный объём",
+                            "avg_regularity": "Средняя регулярность",
+                        }
+                    ),
+                    use_container_width=True,
+                    height="content",
+                )
+
+                # График долей клиентов по кластерам
+                fig_clusters = px.bar(
+                    summary,
+                    x="cluster",
+                    y="pct",
+                    text="pct",
+                    title="Доля клиентов по кластерам, %",
+                )
+                fig_clusters.update_traces(texttemplate="%{text}%", textposition="outside")
+                fig_clusters.update_layout(
+                    template="plotly_white",
+                    xaxis_title="Кластер",
+                    yaxis_title="% клиентов",
+                    margin=dict(t=60, b=40, l=40, r=20),
+                    uniformtext_minsize=10,
+                    uniformtext_mode="hide",
+                )
+                fig_clusters.update_yaxes(range=[0, max(5, float(summary["pct"].max() or 0) * 1.2)])
+                st.plotly_chart(fig_clusters, use_container_width=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
