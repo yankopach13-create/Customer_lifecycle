@@ -1088,17 +1088,19 @@ if uploaded_file_1 and uploaded_file_2:
                 for _, r in summary.iterrows():
                     cluster_name = r["cluster"]
                     crit = _criteria_text(cluster_name, v33_val, v67_val, k_int_cluster, is_months)
-                    desc_t = (desc.get(cluster_name, "") or "").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-                    crit_esc = crit.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    desc_t = (desc.get(cluster_name, "") or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    crit_esc = crit.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     tip_content = f"<strong>Описание:</strong><br>{desc_t}<br><br><strong>Критерии отбора:</strong><br>{crit_esc}"
                     if cluster_name == "Итого":
                         cell_icons = ""
                         cell_cluster = "<strong>Итого</strong>"
                     else:
+                        title_plain = (desc.get(cluster_name, "") or "") + " Критерии: " + crit
+                        title_plain = title_plain.replace('"', "'")[:500]
                         cell_icons = (
                             f'<span class="cluster-tt-wrap">'
-                            f'<span class="cluster-tt-icon">?</span>'
-                            f'<span class="cluster-tt-box">{tip_content}</span></span>'
+                            f'<span class="cluster-tt-icon" title="{title_plain}">?</span>'
+                            f'<span class="cluster-tt-box" aria-hidden="true">{tip_content}</span></span>'
                         )
                         cell_cluster = cluster_name
                     pct_val = r["pct_fmt"]
@@ -1137,13 +1139,15 @@ if uploaded_file_1 and uploaded_file_2:
                         '.cluster-table th.col-icons, .cluster-table td.col-icons {{ width: 28px; max-width: 28px; padding: 4px 6px; text-align: center; }} '
                         '.cluster-table td {{ padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }} '
                         '.cluster-table td:nth-child(2) {{ font-weight: 500; }} '
-                        '.cluster-tt-wrap {{ position: relative; display: inline-flex; justify-content: center; }} '
-                        '.cluster-tt-icon {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; '
+                        '.cluster-table-wrap .cluster-tt-wrap {{ position: relative; display: inline-flex; justify-content: center; }} '
+                        '.cluster-table-wrap .cluster-tt-icon {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; '
                         'border-radius: 50%; background: #6c757d; color: #fff; font-size: 0.7rem; font-weight: bold; cursor: help; }} '
-                        '.cluster-tt-box {{ display: none; position: absolute; left: 50%; transform: translateX(-50%); bottom: 100%; margin-bottom: 4px; '
+                        '.cluster-table-wrap .cluster-tt-box {{ visibility: hidden !important; opacity: 0 !important; position: absolute !important; '
+                        'left: 50%; transform: translateX(-50%); bottom: 100%; margin-bottom: 4px; '
                         'background: #2d3748; color: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.3; '
-                        'max-width: 320px; width: max-content; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 9999; pointer-events: none; }} '
-                        '.cluster-tt-wrap:hover .cluster-tt-box {{ display: block; }} '
+                        'max-width: 320px; width: max-content; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 9999; pointer-events: none; '
+                        'transition: opacity 0.15s ease, visibility 0.15s ease; }} '
+                        '.cluster-table-wrap .cluster-tt-wrap:hover .cluster-tt-box {{ visibility: visible !important; opacity: 1 !important; }} '
                         '.cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} '
                         '.cluster-table tbody tr:first-child td {{ background: #e85d04 !important; color: #fff !important; font-weight: bold; }} '
                         '.cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} '
