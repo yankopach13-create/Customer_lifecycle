@@ -1061,8 +1061,6 @@ if uploaded_file_1 and uploaded_file_2:
                         return "Нет покупок анализируемого продукта в выбранном окне."
                     return ""
 
-                col_desc = "Описание"
-                col_criteria = "Критерии отбора"
                 st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
                 desc = CLUSTER_8_DESCRIPTIONS
                 rows_html = []
@@ -1071,14 +1069,28 @@ if uploaded_file_1 and uploaded_file_2:
                     crit = _criteria_text(cluster_name, v33_val, v67_val, k_int_cluster, is_months)
                     desc_t = (desc.get(cluster_name, "") or "").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
                     crit_esc = crit.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                    tip_content = f"<strong>Описание:</strong><br>{desc_t}<br><br><strong>Критерии отбора:</strong><br>{crit_esc}"
                     if cluster_name == "Итого":
-                        cell_cluster = "<strong>Итого</strong>"
-                        cell_desc = "—"
-                        cell_crit = "—"
+                        client_ids = per_client["client_id"].tolist()
+                        clients_esc = ",".join(str(c) for c in client_ids).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+                        icon_copy = (
+                            f'<button type="button" class="cluster-copy-btn" data-clients="{clients_esc}" title="Копировать коды клиентов">'
+                            f'<span class="cluster-people-icon">👥</span></button>'
+                        )
+                        cell_cluster = f'<span class="cluster-icons">{icon_copy}</span><strong>Итого</strong>'
                     else:
-                        cell_cluster = cluster_name
-                        cell_desc = desc_t
-                        cell_crit = crit_esc
+                        client_ids = per_client[per_client["cluster"] == cluster_name]["client_id"].tolist()
+                        clients_esc = ",".join(str(c) for c in client_ids).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+                        icon_desc = (
+                            f'<span class="cluster-tt-wrap" title="">'
+                            f'<span class="cluster-tt-icon">?</span>'
+                            f'<span class="cluster-tt-box">{tip_content}</span></span>'
+                        )
+                        icon_copy = (
+                            f'<button type="button" class="cluster-copy-btn" data-clients="{clients_esc}" title="Копировать коды клиентов">'
+                            f'<span class="cluster-people-icon">👥</span></button>'
+                        )
+                        cell_cluster = f'<span class="cluster-icons">{icon_desc}{icon_copy}</span>{cluster_name}'
                     pct_val = r["pct_fmt"]
                     avg_r = r["avg_regularity"] if pd.notna(r["avg_regularity"]) else 0
                     x_per = round(avg_r * k_int_cluster, 1)
@@ -1091,19 +1103,31 @@ if uploaded_file_1 and uploaded_file_2:
                         line2 = "Приходят редко или одна покупка"
                     reg_val = f"{line1}<br>{line2}"
                     rows_html.append(
-                        f"<tr><td>{cell_cluster}</td><td>{cell_desc}</td><td>{cell_crit}</td>"
+                        f"<tr><td>{cell_cluster}</td>"
                         f"<td>{int(r['clients'])}</td><td>{pct_val}</td>"
                         f"<td>{int(r['total_volume'])}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
                     )
                 thead = (
                     f"<thead><tr>"
-                    f"<th>{col_cluster}</th><th>{col_desc}</th><th>{col_criteria}</th>"
+                    f"<th>{col_cluster}</th>"
                     f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_regularity}</th>"
                     f"</tr></thead>"
                 )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
+                copy_script = """
+                <script>
+                document.querySelectorAll('.cluster-copy-btn').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var s = this.getAttribute('data-clients') || '';
+                        navigator.clipboard.writeText(s).then(function() {
+                            var t = btn.title; btn.title = 'Скопировано!'; setTimeout(function(){ btn.title = t; }, 1500);
+                        });
+                    });
+                });
+                </script>
+                """
                 st.markdown(
-                    f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
+                    f'<div class="cluster-table-wrap">{copy_script}<table class="cluster-table">{thead}{tbody}</table></div>'
                     '<style>'
                     '.cluster-table-wrap {{ margin: 0.5rem 0; overflow-x: auto; }} '
                     '.cluster-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; '
@@ -1112,11 +1136,25 @@ if uploaded_file_1 and uploaded_file_2:
                     'background: #343a40; color: #fff; font-weight: 600; padding: 6px 8px; text-align: left; '
                     'font-size: 0.8rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }} '
                     '.cluster-table td {{ padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }} '
-                    '.cluster-table td:nth-child(1) {{ font-weight: 500; max-width: 140px; }} '
-                    '.cluster-table td:nth-child(2), .cluster-table td:nth-child(3) {{ max-width: 160px; font-size: 0.75rem; line-height: 1.2; color: #444; padding: 4px 6px; }} '
+                    '.cluster-table td:nth-child(1) {{ font-weight: 500; }} '
+                    '.cluster-icons {{ display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; vertical-align: middle; }} '
+                    '.cluster-tt-wrap {{ position: relative; display: inline-flex; }} '
+                    '.cluster-tt-icon {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; '
+                    'border-radius: 50%; background: #6c757d; color: #fff; font-size: 0.7rem; font-weight: bold; cursor: help; }} '
+                    '.cluster-tt-box {{ display: none; position: absolute; left: 0; bottom: 100%; margin-bottom: 4px; '
+                    'background: #2d3748; color: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.3; '
+                    'max-width: 320px; width: max-content; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 9999; pointer-events: none; }} '
+                    '.cluster-tt-wrap:hover .cluster-tt-box {{ display: block; }} '
+                    '.cluster-copy-btn {{ display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; '
+                    'border: none; border-radius: 4px; background: #7c3aed; color: #fff; cursor: pointer; padding: 0; font-size: 0.85rem; }} '
+                    '.cluster-copy-btn:hover {{ background: #6d28d9; }} '
+                    '.cluster-people-icon {{ line-height: 1; }} '
                     '.cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} '
                     '.cluster-table tbody tr:first-child td {{ background: #e85d04 !important; color: #fff !important; font-weight: bold; }} '
                     '.cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} '
+                    '.cluster-table tbody tr:first-child .cluster-tt-icon {{ background: rgba(255,255,255,0.5); }} '
+                    '.cluster-table tbody tr:first-child .cluster-copy-btn {{ background: rgba(255,255,255,0.35); }} '
+                    '.cluster-table tbody tr:first-child .cluster-copy-btn:hover {{ background: rgba(255,255,255,0.5); }} '
                     '</style>',
                     unsafe_allow_html=True,
                 )
