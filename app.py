@@ -794,14 +794,6 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="cluster_k_periods",
             )
-            n_clusters = st.number_input(
-                "Количество кластеров (без учёта группы «Не покупали»)",
-                min_value=2,
-                max_value=8,
-                value=3,
-                step=1,
-                key="cluster_n_clusters",
-            )
 
         idx_start_c = cohort_labels.index(cohort_start_cluster)
         idx_end_c = cohort_labels.index(cohort_end_cluster)
@@ -902,50 +894,53 @@ if uploaded_file_1 and uploaded_file_2:
                 if df_fit.empty:
                     st.info("Ни один клиент в выбранных когортах не покупал выбранный продукт в заданном окне.")
                 else:
-                    if len(df_fit) < int(n_clusters):
-                        st.warning(
-                            f"Недостаточно клиентов с покупками для {int(n_clusters)} кластеров: "
-                            f"{len(df_fit)} клиентов. Уменьшите количество кластеров или расширьте когорты."
+                    n_clusters = min(3, max(1, len(df_fit)))
+                    if len(df_fit) < n_clusters:
+                        n_clusters = len(df_fit)
+                    try:
+                        from sklearn.cluster import KMeans
+                        from sklearn.preprocessing import StandardScaler
+                    except Exception:
+                        st.error(
+                            "Для кластерного анализа нужен пакет scikit-learn. "
+                            "Установите зависимости из requirements.txt и перезапустите приложение."
                         )
+                        st.stop()
+
+                    X = np.column_stack(
+                        [
+                            np.log1p(df_fit["volume"].astype(float).to_numpy()),
+                            df_fit["regularity"].astype(float).to_numpy(),
+                        ]
+                    )
+                    Xs = StandardScaler().fit_transform(X)
+                    km = KMeans(
+                        n_clusters=n_clusters,
+                        random_state=42,
+                        n_init="auto",
+                    )
+                    labels = km.fit_predict(Xs)
+                    df_fit["_cluster_id"] = labels
+
+                    # Словесные названия по медианному объёму (низкий → высокий)
+                    order = (
+                        df_fit.groupby("_cluster_id")["volume"]
+                        .median()
+                        .sort_values()
+                        .index.tolist()
+                    )
+                    if n_clusters == 1:
+                        names_by_volume = ["Покупатели"]
+                    elif n_clusters == 2:
+                        names_by_volume = ["Низкий объём", "Высокий объём"]
                     else:
-                        try:
-                            from sklearn.cluster import KMeans
-                            from sklearn.preprocessing import StandardScaler
-                        except Exception as e:
-                            st.error(
-                                "Для кластерного анализа нужен пакет scikit-learn. "
-                                "Установите зависимости из requirements.txt и перезапустите приложение."
-                            )
-                            st.stop()
+                        names_by_volume = ["Низкий объём", "Средний объём", "Высокий объём"]
+                    id_to_name = {old: names_by_volume[i] for i, old in enumerate(order) if i < len(names_by_volume)}
+                    df_fit["cluster"] = df_fit["_cluster_id"].map(lambda x: id_to_name.get(x, "Покупатели"))
 
-                        X = np.column_stack(
-                            [
-                                np.log1p(df_fit["volume"].astype(float).to_numpy()),
-                                df_fit["regularity"].astype(float).to_numpy(),
-                            ]
-                        )
-                        Xs = StandardScaler().fit_transform(X)
-                        km = KMeans(
-                            n_clusters=int(n_clusters),
-                            random_state=42,
-                            n_init="auto",
-                        )
-                        labels = km.fit_predict(Xs)
-                        df_fit["_cluster_id"] = labels
-
-                        # Упорядочим кластеры по медианному объёму (низкий → высокий) для стабильных подписей
-                        order = (
-                            df_fit.groupby("_cluster_id")["volume"]
-                            .median()
-                            .sort_values()
-                            .index.tolist()
-                        )
-                        id_map = {old: i + 1 for i, old in enumerate(order)}
-                        df_fit["cluster"] = df_fit["_cluster_id"].map(lambda x: f"Кластер {id_map.get(x, x)}")
-
-                        per_client = per_client.merge(df_fit[["client_id", "cluster"]], on="client_id", how="left", suffixes=("", "_fit"))
-                        per_client["cluster"] = per_client["cluster_fit"].fillna(per_client["cluster"])
-                        per_client = per_client.drop(columns=["cluster_fit"], errors="ignore")
+                    per_client = per_client.merge(df_fit[["client_id", "cluster"]], on="client_id", how="left", suffixes=("", "_fit"))
+                    per_client["cluster"] = per_client["cluster_fit"].fillna(per_client["cluster"])
+                    per_client = per_client.drop(columns=["cluster_fit"], errors="ignore")
 
                 # Итоговая таблица по кластерам
                 total_clients = len(per_client)
@@ -954,22 +949,25 @@ if uploaded_file_1 and uploaded_file_2:
                     .agg(
                         clients=("client_id", "count"),
                         pct=("client_id", lambda s: 100.0 * len(s) / total_clients if total_clients else 0.0),
+                        total_volume=("volume", "sum"),
                         avg_volume=("volume", "mean"),
                         median_volume=("volume", "median"),
                         avg_regularity=("regularity", "mean"),
                     )
                     .reset_index()
                 )
-                # Сортировка: «Не покупали» первым, далее кластеры по номеру
-                def _cluster_sort_key(x: str) -> tuple:
-                    if x == "Не покупали":
-                        return (0, 0)
-                    m = re.search(r"\d+", str(x))
-                    return (1, int(m.group(0)) if m else 999)
+                # Сортировка: «Не покупали» первым, далее Низкий → Средний → Высокий объём, Покупатели
+                cluster_order = ["Не покупали", "Низкий объём", "Средний объём", "Высокий объём", "Покупатели"]
+
+                def _cluster_sort_key(x: str) -> int:
+                    if x in cluster_order:
+                        return cluster_order.index(x)
+                    return 999
 
                 summary["__sort"] = summary["cluster"].map(_cluster_sort_key)
                 summary = summary.sort_values("__sort").drop(columns=["__sort"])
                 summary["pct"] = summary["pct"].round(1)
+                summary["total_volume"] = summary["total_volume"].astype(int)
                 summary["avg_volume"] = summary["avg_volume"].round(2)
                 summary["median_volume"] = summary["median_volume"].round(2)
                 summary["avg_regularity"] = summary["avg_regularity"].round(3)
@@ -980,6 +978,7 @@ if uploaded_file_1 and uploaded_file_2:
                             "cluster": "Кластер",
                             "clients": "Клиентов",
                             "pct": "% клиентов",
+                            "total_volume": "Сумма объёма (ед.)",
                             "avg_volume": "Средний объём",
                             "median_volume": "Медианный объём",
                             "avg_regularity": "Средняя регулярность",
