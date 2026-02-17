@@ -1095,8 +1095,7 @@ if uploaded_file_1 and uploaded_file_2:
                         cell_icons = ""
                         cell_cluster = "<strong>Итого</strong>"
                     else:
-                        title_plain = (desc.get(cluster_name, "") or "") + " Критерии: " + crit
-                        title_plain = title_plain.replace('"', "'")[:500]
+                        title_plain = ((desc.get(cluster_name, "") or "") + " Критерии: " + crit).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")[:500]
                         cell_icons = (
                             f'<span class="cluster-tt-wrap">'
                             f'<span class="cluster-tt-icon" title="{title_plain}">?</span>'
