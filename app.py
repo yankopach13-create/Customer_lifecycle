@@ -1144,12 +1144,12 @@ if uploaded_file_1 and uploaded_file_2:
                     avg_r = r["avg_regularity"] if pd.notna(r["avg_regularity"]) else 0
                     x_per = round(avg_r * k_int_cluster, 1)
                     y_pct = round(avg_r * 100, 1)
-                    line1 = f"Присутствуют в {x_per} {period_word_plural} из {k_int_cluster} ({y_pct}%)"
+                    line1 = f"{x_per} {period_word_plural} из {k_int_cluster} ({y_pct}%)"
                     if avg_r > 0.001:
                         z_days = max(1, round(days_per_period / avg_r))
                         window_days = k_int_cluster * days_per_period
                         suffix = " (вероятно реже)" if z_days >= window_days else ""
-                        line2 = f"Приходят в среднем каждые {z_days} дн.{suffix}"
+                        line2 = f"В среднем каждые {z_days} дн.{suffix}"
                     else:
                         line2 = "Приходят редко или одна покупка"
                     rows_html.append(
