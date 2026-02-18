@@ -58,16 +58,16 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
         <button id="copy_btn_{safe_key}" onclick="copyToClipboard_{safe_key}()" style="
             width: 100%;
             padding: 12px 16px;
-            background: #f8f9fa !important;
+            background: transparent !important;
             color: #333 !important;
-            border: 2px solid #e0e0e0 !important;
+            border: 2px solid #adb5bd !important;
             border-radius: 8px !important;
             cursor: pointer !important;
             font-weight: 400 !important;
             font-size: 0.85rem !important;
             line-height: 1.3 !important;
             text-align: center !important;
-            min-height: 50px !important;
+            min-height: 88px !important;
             height: auto !important;
             display: flex !important;
             align-items: center !important;
@@ -75,12 +75,12 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
             white-space: normal !important;
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+            box-shadow: none !important;
             transition: all 0.3s ease !important;
             margin: 0 !important;
             box-sizing: border-box !important;
             position: relative !important;
-        " onmouseover="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.1)'; this.style.background='#ffffff'; this.style.borderColor='#d0d0d0'; }}" onmouseout="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.05)'; this.style.background='#f8f9fa'; this.style.borderColor='#e0e0e0'; }}" onmousedown="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.05)'; }}" onmouseup="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.1)'; }}">
+        " onmouseover="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.borderColor='#6c757d'; }}" onmouseout="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='none'; this.style.borderColor='#adb5bd'; }}" onmousedown="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; }}" onmouseup="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; }}">
             <div style="display: flex; align-items: center; justify-content: center; width: 100%;">
                 <p id="copy_btn_text_{safe_key}" style="margin: 0; padding: 0; font-size: 0.85rem; font-weight: 400; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{button_label}</p>
             </div>
@@ -102,8 +102,8 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
                 buttonText.innerHTML = '✓ Скопировано!';
                 setTimeout(function() {{
                     button.classList.remove('copied');
-                    button.style.background = '#f8f9fa';
-                    button.style.borderColor = '#e0e0e0';
+                    button.style.background = 'transparent';
+                    button.style.borderColor = '#adb5bd';
                     button.style.color = '#333';
                     button.style.transform = 'translateY(0)';
                     buttonText.innerHTML = originalText;
@@ -141,7 +141,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
         }}
     </script>
     """
-    components.html(html, height=70)
+    components.html(html, height=100)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -1185,7 +1185,6 @@ if uploaded_file_1 and uploaded_file_2:
                         options=cluster_options,
                         default=[],
                         key="cluster_copy_multiselect",
-                        help="Выберите один или несколько кластеров. Кнопка ниже скопирует коды клиентов выбранных кластеров.",
                     )
                 with col_copy_btn:
                     ids_for_copy = per_client[per_client["cluster"].isin(selected_clusters_for_copy)]["client_id"].tolist()
