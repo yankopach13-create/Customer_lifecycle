@@ -1538,6 +1538,59 @@ if uploaded_file_1 and uploaded_file_2:
                     avg_consecutive_weeks = consec["consecutive_weeks"].mean() if len(consec) else 0.0
                     median_consecutive_weeks = consec["consecutive_weeks"].median() if len(consec) else 0.0
 
+                    gap_lengths = []
+                    for cid in df_cw["client_id"].unique():
+                        seq = df_cw[df_cw["client_id"] == cid].set_index("t").reindex(range(k_int_lc)).fillna(False)["bought_any_analyzable"].tolist()
+                        i = 0
+                        while i < k_int_lc:
+                            if not seq[i]:
+                                j = i
+                                while j < k_int_lc and not seq[j]:
+                                    j += 1
+                                gap_lengths.append(j - i)
+                                i = j
+                            else:
+                                i += 1
+                    median_gap = float(np.median(gap_lengths)) if gap_lengths else 1.0
+                    sustained_threshold = max(1, int(round(median_gap)))
+                    first_sustained_start = {}
+                    first_sustained_other = {}
+                    first_sustained_none = {}
+                    for cid in df_cw["client_id"].unique():
+                        rows = df_cw[df_cw["client_id"] == cid].sort_values("t")
+                        seq = rows.set_index("t").reindex(range(k_int_lc)).fillna(False)["bought_any_analyzable"].tolist()
+                        i = 0
+                        found = None
+                        while i < k_int_lc:
+                            if not seq[i]:
+                                j = i
+                                while j < k_int_lc and not seq[j]:
+                                    j += 1
+                                if (j - i) >= sustained_threshold:
+                                    found = (i, j - i)
+                                    break
+                                i = j
+                            else:
+                                i += 1
+                        if found is not None:
+                            t_start, gap_len = found
+                            first_sustained_start[cid] = t_start
+                            window = df_cw[(df_cw["client_id"] == cid) & (df_cw["t"] >= t_start) & (df_cw["t"] < t_start + gap_len)]
+                            first_sustained_other[cid] = window["bought_other"].any()
+                            first_sustained_none[cid] = window["no_purchase"].any()
+                    n_sustained = len(first_sustained_start)
+                    avg_first_sustained_week = np.mean(list(first_sustained_start.values())) if first_sustained_start else None
+                    pct_in_gap_other = 100 * sum(first_sustained_other.values()) / n_sustained if n_sustained else 0
+                    pct_in_gap_none = 100 * sum(first_sustained_none.values()) / n_sustained if n_sustained else 0
+                    pct_clients_with_sustained = 100 * n_sustained / N_lc if N_lc else 0
+
+                    last_purchase_week = df_cw[df_cw["bought_any_analyzable"]].groupby("client_id")["t"].max()
+                    last_pw = last_purchase_week.reindex(consec["client_id"])
+                    exited_mask = (last_pw < k_int_lc - 1) | last_pw.isna()
+                    exited_clients = consec.loc[exited_mask, "client_id"].tolist()
+                    pct_exited = 100 * len(exited_clients) / N_lc if N_lc else 0
+                    avg_last_purchase_week = last_pw[exited_mask].dropna().mean() if exited_mask.any() else None
+
                     t_mid = (k_int_lc - 1) // 2
                     mid_rows = summary_by_week[summary_by_week["t"] == t_mid]
                     row_mid = mid_rows.iloc[0] if len(mid_rows) else None
@@ -1634,19 +1687,30 @@ if uploaded_file_1 and uploaded_file_2:
                         )
                     p2_html = " ".join(p2_parts)
                     p3_html = half_life_text
-                    period_zero = "неделя 0" if not is_months else "месяц 0"
-                    p4a_html = (
-                        f"По каждому клиенту считалась длина первого непрерывного отрезка {period_unit_plural} с покупкой анализируемого продукта с начала ({period_zero}). "
-                        if analyzable_list else ""
-                    )
                     period_loc = "неделе" if not is_months else "месяце"
-                    p4b_html = (
-                        f"В среднем этот отрезок составляет <span class=\"block-num\">{avg_consecutive_weeks:.1f}</span> {period_unit_plural} "
-                        f"(медиана — <span class=\"block-num\">{median_consecutive_weeks:.1f}</span>). "
-                        f"После него в какой‑то {period_loc} клиент не покупает анализируемый (переход на прочие или отсутствие покупок)."
-                        if analyzable_list else ""
-                    )
-                    p4_html = (p4a_html + p4b_html) if analyzable_list else ""
+                    period_loc_gen = "недели" if not is_months else "месяца"
+                    p4_parts = []
+                    if analyzable_list:
+                        p4_parts.append(
+                            f"В когорте типичный перерыв между покупками анализируемого продукта — <span class=\"block-num\">{median_gap:.1f}</span> {period_unit_plural} (медиана по всем перерывам). "
+                            f"Устойчивый перерыв определён как период без покупки анализируемого длиннее типичного (≥ <span class=\"block-num\">{sustained_threshold}</span> {period_loc_gen}). "
+                        )
+                        if n_sustained > 0 and avg_first_sustained_week is not None:
+                            p4_parts.append(
+                                f"Первый устойчивый перерыв есть у <span class=\"block-num\">{pct_clients_with_sustained:.1f}%</span> когорты; в среднем он начинается на {period_loc} <span class=\"block-num\">{avg_first_sustained_week:.1f}</span>. "
+                                f"В этом перерыве: у <span class=\"block-num\">{pct_in_gap_other:.1f}%</span> клиентов были покупки прочих категорий, у <span class=\"block-num\">{pct_in_gap_none:.1f}%</span> не было покупок вообще. "
+                            )
+                        p4_parts.append(
+                            f"Полный уход из продукта (после какой‑то {period_loc_gen} больше не покупали анализируемый до конца наблюдения): <span class=\"block-num\">{pct_exited:.1f}%</span> когорты"
+                        )
+                        if avg_last_purchase_week is not None and not np.isnan(avg_last_purchase_week):
+                            p4_parts.append(f"; в среднем последняя покупка анализируемого на {period_loc} <span class=\"block-num\">{avg_last_purchase_week:.1f}</span>. ")
+                        else:
+                            p4_parts.append(". ")
+                        p4_parts.append(
+                            "Отсутствие покупки в одну неделю не означает уход; часть клиентов после перерыва снова покупает анализируемый. Возможна постепенная миграция между типами поведения (снижение активности вплоть до полного выхода)."
+                        )
+                    p4_html = "".join(p4_parts) if p4_parts else ""
 
                     lifecycle_box_html = (
                         "<style>"
