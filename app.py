@@ -1645,51 +1645,65 @@ if uploaded_file_1 and uploaded_file_2:
                     if half_life_week is not None and pct_at_half is not None:
                         pct_bef = f"{pct_before_half:.1f}%" if pct_before_half is not None else "—"
                         half_life_text = (
-                            f"Доля покупающих анализируемый падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
+                            f"Доля покупающих анализируемый продукт падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
                             f"(на {period_word_on} <span class=\"block-num\">{half_life_week - 1}</span> — <span class=\"block-num\">{pct_bef}</span>, "
                             f"на {period_word_on} <span class=\"block-num\">{half_life_week}</span> — <span class=\"block-num\">{pct_at_half:.1f}%</span>)."
                         )
                     elif half_life_week is not None:
                         half_life_text = (
-                            f"Доля покупающих анализируемый падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
+                            f"Доля покупающих анализируемый продукт падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
                             f"(на {period_word_on} <span class=\"block-num\">{half_life_week}</span> — <span class=\"block-num\">{pct_at_half:.1f}%</span>)."
                         )
                     else:
                         half_life_text = f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают анализируемый продукт."
 
                     anchor_name_esc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    p1_html = (
-                        f"По выбранным когортам (<span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт, <span class=\"block-num\">{N_lc}</span> клиентов) в первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты. "
-                        f"Доля клиентов, покупающих якорный продукт <span class=\"block-product\">{anchor_name_esc}</span>: в начале периода — <span class=\"block-num\">{pct_anchor_first:.1f}%</span>, "
-                        f"в середине — <span class=\"block-num\">{pct_anchor_mid:.1f}%</span>, к концу — <span class=\"block-num\">{pct_anchor_last:.1f}%</span>."
+                    # Интерпретация динамики якорного продукта
+                    if pct_anchor_last < pct_anchor_first - 5:
+                        anchor_trend = "снижается к концу периода — часть когорты перестаёт покупать якорный продукт."
+                    elif pct_anchor_last > pct_anchor_first + 5:
+                        anchor_trend = "растёт к концу периода — когорта сохраняет интерес к якорному продукту."
+                    else:
+                        anchor_trend = "остаётся относительно стабильной — когорта держится вокруг якорного продукта."
+                    p1_intro = (
+                        f"По выбранным когортам: <span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт, <span class=\"block-num\">{N_lc}</span> клиентов, "
+                        f"первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты."
                     )
-                    p2_parts = []
+                    p1_anchor_body = (
+                        f"Якорный продукт <span class=\"block-product\">{anchor_name_esc}</span> — продукт, по которому определена когорта. "
+                        f"Доля клиентов, покупающих якорный продукт: в начале периода — <span class=\"block-num\">{pct_anchor_first:.1f}%</span>, "
+                        f"в середине — <span class=\"block-num\">{pct_anchor_mid:.1f}%</span>, к концу — <span class=\"block-num\">{pct_anchor_last:.1f}%</span>. "
+                        f"Доля покупающих якорный продукт {anchor_trend}"
+                    )
+                    p2_analyzable_parts = []
                     if analyzable_list:
-                        p2_parts.append(
+                        p2_analyzable_parts.append(
                             "По анализируемым продуктам к концу периода: "
                             + ", ".join([f"<span class=\"block-product\">{c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</span> — <span class=\"block-num\">{pct_analyzable_last[i]:.1f}%</span>" for i, c in enumerate(analyzable_list)])
                             + ". "
                         )
                         if pct_analyzable_first is not None and pct_analyzable_mid is not None:
                             pct_analyzable_end_overall = 100 * last["bought_any_analyzable"] / N_lc
-                            p2_parts.append(
+                            p2_analyzable_parts.append(
                                 f"Доля покупающих анализируемый продукт снижается в три этапа: в начале периода — <span class=\"block-num\">{pct_analyzable_first:.1f}%</span>, "
-                                f"в середине — <span class=\"block-num\">{pct_analyzable_mid:.1f}%</span>, к концу — <span class=\"block-num\">{pct_analyzable_end_overall:.1f}%</span>. "
+                                f"в середине — <span class=\"block-num\">{pct_analyzable_mid:.1f}%</span>, к концу — <span class=\"block-num\">{pct_analyzable_end_overall:.1f}%</span>."
                             )
-                    p2_parts.append(
-                        f"Исходы к концу периода: <span class=\"block-num\">{pct_other_last:.1f}%</span> покупают прочие категории, "
-                        f"<span class=\"block-num\">{pct_none_last:.1f}%</span> не имели покупок в последнюю {period_unit_lc}."
+                    p2_analyzable_html = " ".join(p2_analyzable_parts) if p2_analyzable_parts else ""
+                    p2_outcomes_html = (
+                        f"<span class=\"block-num\">{pct_other_last:.1f}%</span> клиентов покупают прочие категории (без анализируемого в последнюю {period_unit_lc}), "
+                        f"<span class=\"block-num\">{pct_none_last:.1f}%</span> не имели покупок в последнюю {period_unit_lc} (ни якорного, ни анализируемого, ни прочих)."
                     )
+                    p2_other_popular_html = ""
                     if most_popular_other and pct_most_popular_other > 0:
                         most_pop_esc = most_popular_other.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                        p2_parts.append(
-                            f" Среди прочих категорий наиболее популярна <span class=\"block-product\">{most_pop_esc}</span> "
-                            f"(<span class=\"block-num\">{pct_most_popular_other:.1f}%</span> когорты в последнюю {period_unit_lc})."
+                        p2_other_popular_html = (
+                            f"Среди прочих категорий наиболее популярна <span class=\"block-product\">{most_pop_esc}</span>: "
+                            f"<span class=\"block-num\">{pct_most_popular_other:.1f}%</span> когорты покупали её в последнюю {period_unit_lc}."
                         )
-                    p2_html = " ".join(p2_parts)
                     p3_html = half_life_text
                     period_loc = "неделе" if not is_months else "месяце"
                     period_loc_gen = "недели" if not is_months else "месяца"
+                    period_one = "одна неделя" if not is_months else "один месяц"
                     p4_parts = []
                     if analyzable_list:
                         p4_parts.append(
@@ -1697,37 +1711,50 @@ if uploaded_file_1 and uploaded_file_2:
                             f"Устойчивый перерыв определён как период без покупки анализируемого длиннее типичного (≥ <span class=\"block-num\">{sustained_threshold}</span> {period_loc_gen}). "
                         )
                         if n_sustained > 0 and avg_first_sustained_week is not None:
+                            pct_rest = 100 - pct_in_gap_other
                             p4_parts.append(
-                                f"Первый устойчивый перерыв есть у <span class=\"block-num\">{pct_clients_with_sustained:.1f}%</span> когорты; в среднем он начинается на {period_loc} <span class=\"block-num\">{avg_first_sustained_week:.1f}</span>. "
-                                f"В этом перерыве: у <span class=\"block-num\">{pct_in_gap_other:.1f}%</span> клиентов были покупки прочих категорий, у <span class=\"block-num\">{pct_in_gap_none:.1f}%</span> не было покупок вообще. "
+                                f"Первый устойчивый перерыв (без покупки анализируемого продукта) есть у <span class=\"block-num\">{pct_clients_with_sustained:.1f}%</span> когорты; в среднем он начинается на {period_loc} <span class=\"block-num\">{avg_first_sustained_week:.1f}</span>. "
+                                f"В этом перерыве у <span class=\"block-num\">{pct_in_gap_none:.1f}%</span> клиентов была хотя бы {period_one} без покупок вообще (ни якорного, ни анализируемого, ни прочих); у <span class=\"block-num\">{pct_in_gap_other:.1f}%</span> — хотя бы {period_one} с покупками прочих категорий (у остальных <span class=\"block-num\">{pct_rest:.1f}%</span> в перерыве прочие не покупали). "
                             )
                         p4_parts.append(
-                            f"Полный уход из продукта (после какой‑то {period_loc_gen} больше не покупали анализируемый до конца наблюдения): <span class=\"block-num\">{pct_exited:.1f}%</span> когорты"
+                            f"Полный уход из анализируемого продукта (после какой‑то {period_loc_gen} больше не покупали анализируемый продукт до конца наблюдения): <span class=\"block-num\">{pct_exited:.1f}%</span> когорты"
                         )
                         if avg_last_purchase_week is not None and not np.isnan(avg_last_purchase_week):
-                            p4_parts.append(f"; в среднем последняя покупка анализируемого на {period_loc} <span class=\"block-num\">{avg_last_purchase_week:.1f}</span>. ")
+                            p4_parts.append(f"; в среднем последняя покупка анализируемого продукта на {period_loc} <span class=\"block-num\">{avg_last_purchase_week:.1f}</span>. ")
                         else:
                             p4_parts.append(". ")
-                        p4_parts.append(
-                            "Отсутствие покупки в одну неделю не означает уход; часть клиентов после перерыва снова покупает анализируемый. Возможна постепенная миграция между типами поведения (снижение активности вплоть до полного выхода)."
-                        )
                     p4_html = "".join(p4_parts) if p4_parts else ""
 
                     lifecycle_box_html = (
                         "<style>"
                         ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
                         ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }"
+                        ".block-result-box .block-section-title { font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: rgba(255,255,255,0.95); display: block; font-size: 0.95rem; }"
+                        ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
                         ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
+                        ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
                         f'<div class="block-result-box">'
                         f'<span class="block-period-caption">{period_range_caption_lc}</span>'
-                        f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p1_html}</p>'
-                        f'<p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">{p2_html}</p>'
-                        f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p3_html}</p>'
+                        f'<p class="block-p">{p1_intro}</p>'
+                        f'<span class="block-section-title">Якорный продукт</span>'
+                        f'<p class="block-p">{p1_anchor_body}</p>'
+                    )
+                    if p2_analyzable_html:
+                        lifecycle_box_html += f'<span class="block-section-title">Анализируемый продукт</span><p class="block-p">{p2_analyzable_html}</p>'
+                    lifecycle_box_html += (
+                        f'<span class="block-section-title">Исходы к концу периода</span>'
+                        f'<p class="block-p">{p2_outcomes_html}</p>'
+                    )
+                    if p2_other_popular_html:
+                        lifecycle_box_html += f'<span class="block-section-title">Среди прочих категорий</span><p class="block-p">{p2_other_popular_html}</p>'
+                    lifecycle_box_html += (
+                        f'<span class="block-section-title">Полураспад анализируемого продукта</span>'
+                        f'<p class="block-p">{p3_html}</p>'
                     )
                     if p4_html:
-                        lifecycle_box_html += f'<p style="margin: 0; font-size: 1rem;">{p4_html}</p>'
+                        lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
                     lifecycle_box_html += "</div>"
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
     else:
