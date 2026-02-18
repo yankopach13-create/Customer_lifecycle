@@ -5,6 +5,7 @@ Streamlit-приложение для загрузки отчётов из Qlik 
 
 import re
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -1158,6 +1159,7 @@ if uploaded_file_1 and uploaded_file_2:
                 )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
                 cluster_table_html = (
+                    "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                     "<style>\n"
                     ".cluster-table-wrap { margin: 0.5rem 0; max-height: 70vh; overflow: auto; }\n"
                     ".cluster-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; "
@@ -1182,9 +1184,10 @@ if uploaded_file_1 and uploaded_file_2:
                     ".cluster-table tbody tr:first-child td { background: #e85d04 !important; color: #fff !important; font-weight: bold; }\n"
                     ".cluster-table tbody tr:first-child:hover td { background: #e85d04 !important; }\n"
                     ".cluster-table tbody tr:first-child .cluster-arrow { color: rgba(255,255,255,0.9); }\n"
-                    "</style>\n"
+                    "</style></head><body>"
                     f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
+                    "</body></html>"
                 )
-                st.html(cluster_table_html)
+                components.html(cluster_table_html, height=min(600, 200 + len(rows_html) * 36), scrolling=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
