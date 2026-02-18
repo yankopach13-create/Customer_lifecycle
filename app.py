@@ -1427,12 +1427,23 @@ if uploaded_file_1 and uploaded_file_2:
                     df_cw[f"bought_a{i}"] = df_cw["categories"].apply(lambda s, c=cat: c in s)
                 df_cw["bought_other"] = df_cw["categories"].apply(lambda s: bool(s & other_cats))
                 df_cw["no_purchase"] = df_cw["categories"].apply(lambda s: len(s) == 0)
+                if analyzable_list:
+                    df_cw["bought_any_analyzable"] = df_cw[[f"bought_a{i}" for i in range(len(analyzable_list))]].any(axis=1)
+                else:
+                    df_cw["bought_any_analyzable"] = False
 
                 N_lc = len(cohort_clients_lc)
-                agg_d = {"bought_anchor": ("bought_anchor", "sum"), "bought_other": ("bought_other", "sum"), "no_purchase": ("no_purchase", "sum")}
+                agg_d = {"bought_anchor": ("bought_anchor", "sum"), "bought_other": ("bought_other", "sum"), "no_purchase": ("no_purchase", "sum"), "bought_any_analyzable": ("bought_any_analyzable", "sum")}
                 for i in range(len(analyzable_list)):
                     agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
                 summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
+
+                half_life_week = None
+                for _, r in summary_by_week.iterrows():
+                    if r["bought_any_analyzable"] / N_lc < 0.5:
+                        half_life_week = int(r["t"])
+                        break
+                avg_periods_analyzable = df_cw.groupby("client_id")["bought_any_analyzable"].sum().mean() if analyzable_list else 0.0
 
                 period_unit_lc = "месяц" if is_months else "неделя"
                 period_unit_plural = "месяцев" if is_months else "недель"
@@ -1463,20 +1474,58 @@ if uploaded_file_1 and uploaded_file_2:
                 first_row = summary_by_week.iloc[0]
                 pct_anchor_first = 100 * first_row["bought_anchor"] / N_lc
 
-                first_period_label = "в первом месяце" if is_months else "в первой неделе"
-                conclusions_parts = [
-                    f"По выбранным когортам ({len(cohorts_to_use_lc)} когорт, {N_lc} клиентов) в первые {k_int_lc} {period_unit_plural} с момента когорты: "
-                    f"доля клиентов, покупающих якорный продукт, {first_period_label} составляет {pct_anchor_first:.1f}%, "
-                    f"к концу периода — {pct_anchor_last:.1f}%. "
-                ]
-                if analyzable_list:
-                    conclusions_parts.append(
-                        "По анализируемым продуктам: " + ", ".join([f"«{c}» — {pct_analyzable_last[i]:.1f}% к концу периода" for i, c in enumerate(analyzable_list)]) + ". "
-                    )
-                conclusions_parts.append(
-                    f"Доля покупающих только прочие категории к концу периода — {pct_other_last:.1f}%; "
-                    f"без покупок в последнюю {period_unit_lc} — {pct_none_last:.1f}%."
+                period_range_caption_lc = format_period_range_for_caption(
+                    cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
                 )
-                st.markdown("**Выводы:** " + "".join(conclusions_parts))
+                period_word_until = "недели" if not is_months else "месяца"
+                half_life_text = (
+                    f"Более половины когорты ещё покупают анализируемый продукт до {period_word_until} <span class=\"block-num\">{half_life_week}</span>."
+                    if half_life_week is not None
+                    else f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают анализируемый продукт."
+                )
+                avg_periods_text = (
+                    f"В среднем клиент когорты покупает анализируемый продукт в <span class=\"block-num\">{avg_periods_analyzable:.1f}</span> из <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}."
+                    if analyzable_list else ""
+                )
+
+                first_period_label = "в первом месяце" if is_months else "в первой неделе"
+                anchor_name_esc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                p1_html = (
+                    f"По выбранным когортам (<span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт, <span class=\"block-num\">{N_lc}</span> клиентов) в первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты: "
+                    f"доля клиентов, покупающих якорный продукт <span class=\"block-product\">{anchor_name_esc}</span>, {first_period_label} составляет <span class=\"block-num\">{pct_anchor_first:.1f}%</span>, "
+                    f"к концу периода — <span class=\"block-num\">{pct_anchor_last:.1f}%</span>."
+                )
+                p2_parts = []
+                if analyzable_list:
+                    p2_parts.append(
+                        "По анализируемым продуктам: "
+                        + ", ".join([f"<span class=\"block-product\">{c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</span> — <span class=\"block-num\">{pct_analyzable_last[i]:.1f}%</span> к концу периода" for i, c in enumerate(analyzable_list)])
+                        + "."
+                    )
+                p2_parts.append(
+                    f"Доля покупающих прочие категории к концу периода — <span class=\"block-num\">{pct_other_last:.1f}%</span>; "
+                    f"без покупок в последнюю {period_unit_lc} — <span class=\"block-num\">{pct_none_last:.1f}%</span>."
+                )
+                p2_html = " ".join(p2_parts)
+                p3_html = half_life_text
+                p4_html = avg_periods_text if avg_periods_text else ""
+
+                lifecycle_box_html = (
+                    "<style>"
+                    ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
+                    ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }"
+                    ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
+                    ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
+                    "</style>"
+                    f'<div class="block-result-box">'
+                    f'<span class="block-period-caption">{period_range_caption_lc}</span>'
+                    f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p1_html}</p>'
+                    f'<p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">{p2_html}</p>'
+                    f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p3_html}</p>'
+                )
+                if p4_html:
+                    lifecycle_box_html += f'<p style="margin: 0; font-size: 1rem;">{p4_html}</p>'
+                lifecycle_box_html += "</div>"
+                st.markdown(lifecycle_box_html, unsafe_allow_html=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
