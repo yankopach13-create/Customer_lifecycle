@@ -54,7 +54,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
     safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(key))
     text_json = json.dumps(text)
     html = f"""
-    <div data-testid="stButton" style="width: 100%; margin: 5px 0;">
+    <div data-testid="stButton" style="width: 100%; margin: 5px 0; margin-top: 32px;">
         <button id="copy_btn_{safe_key}" onclick="copyToClipboard_{safe_key}()" style="
             width: 100%;
             padding: 12px 16px;
