@@ -3,6 +3,7 @@
 Streamlit-приложение для загрузки отчётов из Qlik по шаблону.
 """
 
+import json
 import re
 import streamlit as st
 import streamlit.components.v1 as components
@@ -46,6 +47,101 @@ CLUSTER_8_DESCRIPTIONS = {
 def _cluster_display_name(name: str) -> str:
     """Убирает всё в скобках из названия кластера для отображения."""
     return re.sub(r"\s*\([^)]*\)", "", name).strip() if name else name
+
+
+def create_copy_button(text: str, button_label: str, key: str) -> None:
+    """Создаёт кнопку для копирования текста в буфер обмена (Clipboard API + fallback)."""
+    safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(key))
+    text_json = json.dumps(text)
+    html = f"""
+    <div data-testid="stButton" style="width: 100%; margin: 5px 0;">
+        <button id="copy_btn_{safe_key}" onclick="copyToClipboard_{safe_key}()" style="
+            width: 100%;
+            padding: 12px 16px;
+            background: #f8f9fa !important;
+            color: #333 !important;
+            border: 2px solid #e0e0e0 !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+            font-weight: 400 !important;
+            font-size: 0.85rem !important;
+            line-height: 1.3 !important;
+            text-align: center !important;
+            min-height: 50px !important;
+            height: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+            transition: all 0.3s ease !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+            position: relative !important;
+        " onmouseover="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.1)'; this.style.background='#ffffff'; this.style.borderColor='#d0d0d0'; }}" onmouseout="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.05)'; this.style.background='#f8f9fa'; this.style.borderColor='#e0e0e0'; }}" onmousedown="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.05)'; }}" onmouseup="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.1)'; }}">
+            <div style="display: flex; align-items: center; justify-content: center; width: 100%;">
+                <p id="copy_btn_text_{safe_key}" style="margin: 0; padding: 0; font-size: 0.85rem; font-weight: 400; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{button_label}</p>
+            </div>
+        </button>
+    </div>
+    <script>
+        const textToCopy_{safe_key} = {text_json};
+        function copyToClipboard_{safe_key}() {{
+            const text = textToCopy_{safe_key};
+            const button = document.getElementById('copy_btn_{safe_key}');
+            const buttonText = document.getElementById('copy_btn_text_{safe_key}');
+            const originalText = buttonText.innerHTML;
+            function showSuccess() {{
+                button.classList.add('copied');
+                button.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+                button.style.borderColor = '#4CAF50';
+                button.style.color = 'white';
+                button.style.transform = 'scale(0.98)';
+                buttonText.innerHTML = '✓ Скопировано!';
+                setTimeout(function() {{
+                    button.classList.remove('copied');
+                    button.style.background = '#f8f9fa';
+                    button.style.borderColor = '#e0e0e0';
+                    button.style.color = '#333';
+                    button.style.transform = 'translateY(0)';
+                    buttonText.innerHTML = originalText;
+                }}, 2500);
+            }}
+            if (navigator.clipboard && navigator.clipboard.writeText) {{
+                navigator.clipboard.writeText(text).then(function() {{ showSuccess(); }}).catch(function(err) {{
+                    console.error('Clipboard API error:', err);
+                    fallbackCopy_{safe_key}(text, showSuccess);
+                }});
+            }} else {{
+                fallbackCopy_{safe_key}(text, showSuccess);
+            }}
+        }}
+        function fallbackCopy_{safe_key}(text, successCallback) {{
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-999999px';
+            textarea.style.top = '-999999px';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {{
+                const successful = document.execCommand('copy');
+                if (successful) {{ successCallback(); }}
+                else {{ alert('Не удалось скопировать. Скопируйте вручную.'); }}
+            }} catch(err) {{
+                console.error('Copy command error:', err);
+                alert('Ошибка копирования: ' + err);
+            }} finally {{
+                document.body.removeChild(textarea);
+            }}
+        }}
+    </script>
+    """
+    components.html(html, height=70)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -793,7 +889,7 @@ if uploaded_file_1 and uploaded_file_2:
         st.subheader("Кластерный анализ")
         st.caption("Сегментация клиентов по объёму покупок и регулярности покупок выбранного продукта в первые K периодов после когорты.")
 
-        col_cohorts_cl, col_analyzed_cl, col_params_cl = st.columns([1, 1, 1])
+        col_cohorts_cl, col_analyzed_cl = st.columns([1, 1])
         with col_cohorts_cl:
             cohort_start_cluster = st.selectbox(
                 "С когорты",
@@ -815,7 +911,6 @@ if uploaded_file_1 and uploaded_file_2:
                 key="cluster_categories",
                 help="Категории, по которым считаются объём и регулярность покупок для кластеризации.",
             )
-        with col_params_cl:
             k_periods_cluster = st.number_input(
                 "Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
                 min_value=1,
@@ -1078,37 +1173,26 @@ if uploaded_file_1 and uploaded_file_2:
                     return ""
 
                 cluster_names_list = summary["cluster"].tolist()
+                cluster_options = [c for c in cluster_names_list if c != "Итого"]
                 cluster_display_to_full = {_cluster_display_name(n): n for n in cluster_names_list}
                 cluster_full_to_display = {n: _cluster_display_name(n) for n in cluster_names_list}
-                col_copy1, col_copy2, col_copy3 = st.columns([1, 1, 1])
-                with col_copy2:
-                    st.caption("Копировать коды клиентов")
-                    copy_cluster_display = st.selectbox(
-                        "Кластер",
-                        options=[cluster_full_to_display[n] for n in cluster_names_list],
-                        key="cluster_copy_select",
-                        label_visibility="collapsed",
+
+                st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+                col_clusters_sel, col_copy_btn = st.columns([1, 1])
+                with col_clusters_sel:
+                    selected_clusters_for_copy = st.multiselect(
+                        "Выбор кластеров",
+                        options=cluster_options,
+                        default=[],
+                        key="cluster_copy_multiselect",
+                        help="Выберите один или несколько кластеров. Кнопка ниже скопирует коды клиентов выбранных кластеров.",
                     )
-                    copy_cluster_selected = cluster_display_to_full.get(copy_cluster_display, copy_cluster_display)
-                with col_copy3:
-                    ids_for_copy = per_client[per_client["cluster"] == copy_cluster_selected]["client_id"].tolist()
+                with col_copy_btn:
+                    ids_for_copy = per_client[per_client["cluster"].isin(selected_clusters_for_copy)]["client_id"].tolist()
                     copy_data_str = ",".join(str(c) for c in ids_for_copy)
-                    st.text_area(
-                        "Коды клиентов",
-                        value=copy_data_str,
-                        height=80,
-                        disabled=True,
-                        key="cluster_codes_text",
-                        label_visibility="collapsed",
-                    )
-                    st.caption("Выделите текст и Ctrl+C для копирования. Или скачайте:")
-                    st.download_button(
-                        "Скачать .txt",
-                        data=copy_data_str,
-                        file_name="client_codes.txt",
-                        mime="text/plain",
-                        key="cluster_download_codes",
-                    )
+                    n_copy = len(ids_for_copy)
+                    copy_label = f"📋 Копировать коды ({n_copy})" if n_copy else "📋 Копировать коды (0)"
+                    create_copy_button(copy_data_str, copy_label, "copy_cluster_codes")
 
                 st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
                 desc = CLUSTER_8_DESCRIPTIONS
