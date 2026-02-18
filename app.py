@@ -1357,15 +1357,19 @@ if uploaded_file_1 and uploaded_file_2:
         cluster_options_display_lc = ["Все кластеры"] + [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
         n_cluster_cols = len(cluster_options_display_lc)
         st.caption("Отбор кластеров для статистики по неделям.")
+        all_only = st.session_state.get("lifecycle_all_only", True)
         cols_clusters_lc = st.columns(n_cluster_cols)
         selected_clusters_lifecycle = []
         for i, opt in enumerate(cluster_options_display_lc):
             with cols_clusters_lc[i]:
-                if st.checkbox(opt, value=(i == 0), key=f"lifecycle_cluster_cb_{i}"):
+                if i == 0:
+                    checked = st.checkbox(opt, value=all_only, key="lifecycle_cluster_cb_all")
+                else:
+                    key_other = f"lifecycle_cluster_cb_{i}_off" if all_only else f"lifecycle_cluster_cb_{i}"
+                    checked = st.checkbox(opt, value=False, key=key_other)
+                if checked:
                     selected_clusters_lifecycle.append(opt)
-        if "Все кластеры" in selected_clusters_lifecycle:
-            for i in range(1, n_cluster_cols):
-                st.session_state[f"lifecycle_cluster_cb_{i}"] = False
+        st.session_state["lifecycle_all_only"] = "Все кластеры" in selected_clusters_lifecycle
 
         idx_start_lc = cohort_labels.index(cohort_start_lc)
         idx_end_lc = cohort_labels.index(cohort_end_lc)
