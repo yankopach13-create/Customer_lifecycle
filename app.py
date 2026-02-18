@@ -1321,9 +1321,9 @@ if uploaded_file_1 and uploaded_file_2:
                 components.html(cluster_table_html, height=min(800, 280 + len(rows_html) * 40), scrolling=True)
 
         # --- Блок «Цикл жизни клиента якорного продукта» ---
-        st.divider()
+        st.markdown("<div style='margin: 0.35rem 0; height: 1px; background: #dee2e6;'></div>", unsafe_allow_html=True)
         st.subheader("Цикл жизни клиента якорного продукта")
-        st.markdown(f"Якорный продукт когорт: :violet[{category_label}]")
+        st.markdown(f"### Якорный продукт когорт: :violet[{category_label}]")
         st.caption("По неделям/месяцам с момента когорты: доля когорты, покупающая якорный, выбранные анализируемые продукты, прочие категории или отсутствие покупок.")
 
         col_cohorts_lc, col_analyzed_lc = st.columns([1, 1])
@@ -1357,7 +1357,7 @@ if uploaded_file_1 and uploaded_file_2:
             )
         cluster_options_display_lc = ["Все кластеры"] + [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
         n_cluster_cols = len(cluster_options_display_lc)
-        st.caption("Кластеры для статистики по неделям (сначала вправо, затем вниз)")
+        st.caption("Отбор кластеров для статистики по неделям.")
         cols_clusters_lc = st.columns(n_cluster_cols)
         selected_clusters_lifecycle = []
         for i, opt in enumerate(cluster_options_display_lc):
