@@ -886,7 +886,7 @@ if uploaded_file_1 and uploaded_file_2:
                     st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
 
         # --- Блок «Кластерный анализ» ---
-        st.divider()
+        st.markdown("<div style='margin: 0.35rem 0; height: 1px; background: #dee2e6;'></div>", unsafe_allow_html=True)
         st.subheader("Кластерный анализ")
         st.caption("Сегментация клиентов по объёму покупок и регулярности покупок выбранного продукта в первые K периодов после когорты.")
 
@@ -1324,7 +1324,6 @@ if uploaded_file_1 and uploaded_file_2:
         st.markdown("<div style='margin: 0.35rem 0; height: 1px; background: #dee2e6;'></div>", unsafe_allow_html=True)
         st.subheader("Цикл жизни клиента якорного продукта")
         st.markdown(f"### Якорный продукт когорт: :violet[{category_label}]")
-        st.caption("По неделям/месяцам с момента когорты: доля когорты, покупающая якорный, выбранные анализируемые продукты, прочие категории или отсутствие покупок.")
 
         col_cohorts_lc, col_analyzed_lc = st.columns([1, 1])
         with col_cohorts_lc:
@@ -1364,6 +1363,9 @@ if uploaded_file_1 and uploaded_file_2:
             with cols_clusters_lc[i]:
                 if st.checkbox(opt, value=(i == 0), key=f"lifecycle_cluster_cb_{i}"):
                     selected_clusters_lifecycle.append(opt)
+        if "Все кластеры" in selected_clusters_lifecycle:
+            for i in range(1, n_cluster_cols):
+                st.session_state[f"lifecycle_cluster_cb_{i}"] = False
 
         idx_start_lc = cohort_labels.index(cohort_start_lc)
         idx_end_lc = cohort_labels.index(cohort_end_lc)
