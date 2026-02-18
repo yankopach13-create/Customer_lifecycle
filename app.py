@@ -1585,11 +1585,12 @@ if uploaded_file_1 and uploaded_file_2:
                     pct_clients_with_sustained = 100 * n_sustained / N_lc if N_lc else 0
 
                     last_purchase_week = df_cw[df_cw["bought_any_analyzable"]].groupby("client_id")["t"].max()
-                    last_pw = last_purchase_week.reindex(consec["client_id"])
+                    last_pw = last_purchase_week.reindex(consec["client_id"].values)
+                    last_pw.index = consec.index
                     exited_mask = (last_pw < k_int_lc - 1) | last_pw.isna()
-                    exited_clients = consec.loc[exited_mask, "client_id"].tolist()
+                    exited_clients = consec.loc[exited_mask]["client_id"].tolist()
                     pct_exited = 100 * len(exited_clients) / N_lc if N_lc else 0
-                    avg_last_purchase_week = last_pw[exited_mask].dropna().mean() if exited_mask.any() else None
+                    avg_last_purchase_week = last_pw.loc[exited_mask].dropna().mean() if exited_mask.any() else None
 
                     t_mid = (k_int_lc - 1) // 2
                     mid_rows = summary_by_week[summary_by_week["t"] == t_mid]
