@@ -1157,34 +1157,34 @@ if uploaded_file_1 and uploaded_file_2:
                     f"</tr></thead>"
                 )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
-                st.markdown(
-                    f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
-                    "<style>"
-                    ".cluster-table-wrap {{ margin: 0.5rem 0; max-height: 70vh; overflow: auto; }} "
-                    ".cluster-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; "
-                    "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }} "
-                    ".cluster-table thead th {{ position: sticky; top: 0; z-index: 100; "
+                cluster_table_html = (
+                    "<style>\n"
+                    ".cluster-table-wrap { margin: 0.5rem 0; max-height: 70vh; overflow: auto; }\n"
+                    ".cluster-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; "
+                    "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }\n"
+                    ".cluster-table thead th { position: sticky; top: 0; z-index: 100; "
                     "background: #343a40; color: #fff; font-weight: 600; padding: 6px 8px; text-align: left; "
-                    "font-size: 0.8rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }} "
-                    ".cluster-table td {{ padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }} "
-                    ".cluster-table td:nth-child(1) {{ font-weight: 500; }} "
-                    ".cluster-details-wrap summary {{ list-style: none; cursor: pointer; }} "
-                    ".cluster-details-wrap summary::-webkit-details-marker {{ display: none; }} "
-                    ".cluster-arrow {{ display: inline-block; margin-right: 4px; font-size: 0.65rem; color: #6c757d; }} "
-                    ".cluster-details-wrap[open] .cluster-arrow {{ transform: rotate(90deg); }} "
-                    ".cluster-details {{ margin-top: 8px; padding: 8px 10px; background: #f8f9fa; color: #212529; "
-                    "border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.75rem; text-align: left; }} "
-                    ".cluster-detail-block {{ margin-bottom: 4px; }} "
-                    ".cluster-detail-block:last-child {{ margin-bottom: 0; }} "
-                    ".cluster-detail-block strong {{ font-weight: 600; font-style: italic; }} "
-                    ".cluster-detail-block:first-child strong {{ color: #5c2d91; }} "
-                    ".cluster-detail-block:last-child strong {{ color: #e85d04; }} "
-                    ".cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} "
-                    ".cluster-table tbody tr:first-child td {{ background: #e85d04 !important; color: #fff !important; font-weight: bold; }} "
-                    ".cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} "
-                    ".cluster-table tbody tr:first-child .cluster-arrow {{ color: rgba(255,255,255,0.9); }} "
-                    "</style>",
-                    unsafe_allow_html=True,
+                    "font-size: 0.8rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }\n"
+                    ".cluster-table td { padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }\n"
+                    ".cluster-table td:nth-child(1) { font-weight: 500; }\n"
+                    ".cluster-details-wrap summary { list-style: none; cursor: pointer; }\n"
+                    ".cluster-details-wrap summary::-webkit-details-marker { display: none; }\n"
+                    ".cluster-arrow { display: inline-block; margin-right: 4px; font-size: 0.65rem; color: #6c757d; }\n"
+                    ".cluster-details-wrap[open] .cluster-arrow { transform: rotate(90deg); }\n"
+                    ".cluster-details { margin-top: 8px; padding: 8px 10px; background: #f8f9fa; color: #212529; "
+                    "border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.75rem; text-align: left; }\n"
+                    ".cluster-detail-block { margin-bottom: 4px; }\n"
+                    ".cluster-detail-block:last-child { margin-bottom: 0; }\n"
+                    ".cluster-detail-block strong { font-weight: 600; font-style: italic; }\n"
+                    ".cluster-detail-block:first-child strong { color: #5c2d91; }\n"
+                    ".cluster-detail-block:last-child strong { color: #e85d04; }\n"
+                    ".cluster-table tbody tr:hover td { background-color: #f8f9fa; }\n"
+                    ".cluster-table tbody tr:first-child td { background: #e85d04 !important; color: #fff !important; font-weight: bold; }\n"
+                    ".cluster-table tbody tr:first-child:hover td { background: #e85d04 !important; }\n"
+                    ".cluster-table tbody tr:first-child .cluster-arrow { color: rgba(255,255,255,0.9); }\n"
+                    "</style>\n"
+                    f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
                 )
+                st.html(cluster_table_html)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
