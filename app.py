@@ -54,7 +54,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
     safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(key))
     text_json = json.dumps(text)
     html = f"""
-    <div data-testid="stButton" style="width: 100%; margin: 5px 0; margin-top: 32px;">
+    <div data-testid="stButton" style="width: 100%; margin: 5px 0;">
         <button id="copy_btn_{safe_key}" onclick="copyToClipboard_{safe_key}()" style="
             width: 100%;
             padding: 12px 16px;
@@ -68,8 +68,8 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
             font-size: 0.85rem !important;
             line-height: 1.3 !important;
             text-align: center !important;
-            min-height: 50px !important;
-            height: auto !important;
+            min-height: 72px !important;
+            height: 72px !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -142,7 +142,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
         }}
     </script>
     """
-    components.html(html, height=70)
+    components.html(html, height=85)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
