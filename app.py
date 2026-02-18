@@ -961,13 +961,14 @@ if uploaded_file_1 and uploaded_file_2:
                         clients=("client_id", "count"),
                         pct=("client_id", lambda s: 100.0 * len(s) / total_clients if total_clients else 0.0),
                         total_volume=("volume", "sum"),
+                        active_periods_sum=("active_periods", "sum"),
                         avg_regularity=("regularity", "mean"),
                     )
                     .reset_index()
                 )
+                # Средний объём на клиента в неделю/месяц покупки (делим на число периодов с покупкой, а не на K)
                 summary["avg_client_per_period"] = (
-                    (summary["total_volume"] / summary["clients"].replace(0, 1) / k_int_cluster)
-                    .round(2)
+                    (summary["total_volume"] / summary["active_periods_sum"].replace(0, 1)).round(2)
                 )
                 # Всегда 8 поведенческих кластеров + Не покупали; недостающие — 0
                 for c in CLUSTER_8_ORDER:
@@ -981,6 +982,7 @@ if uploaded_file_1 and uploaded_file_2:
                                         "clients": 0,
                                         "pct": 0.0,
                                         "total_volume": 0,
+                                        "active_periods_sum": 0,
                                         "avg_regularity": 0.0,
                                         "avg_client_per_period": 0.0,
                                     }]
@@ -992,27 +994,28 @@ if uploaded_file_1 and uploaded_file_2:
                     summary = pd.concat(
                         [
                             summary,
-                            pd.DataFrame(
-                                [{
-                                    "cluster": "Не покупали",
-                                    "clients": 0,
-                                    "pct": 0.0,
-                                    "total_volume": 0,
-                                    "avg_regularity": 0.0,
-                                    "avg_client_per_period": 0.0,
-                                }]
-                            ),
+                                pd.DataFrame(
+                                    [{
+                                        "cluster": "Не покупали",
+                                        "clients": 0,
+                                        "pct": 0.0,
+                                        "total_volume": 0,
+                                        "active_periods_sum": 0,
+                                        "avg_regularity": 0.0,
+                                        "avg_client_per_period": 0.0,
+                                    }]
+                                ),
                         ],
                         ignore_index=True,
                     )
-                # Порядок: по убыванию активности (8 кластеров), затем «Не покупали»
-                order_map = {name: i for i, name in enumerate(CLUSTER_8_ORDER)}
-                order_map["Не покупали"] = 999
-                summary["__order"] = summary["cluster"].map(lambda x: order_map.get(x, 500))
-                summary = summary.sort_values("__order").drop(columns=["__order"])
+                # Порядок: по объёму за период от большего к меньшему, нулевые кластеры в конце
+                summary = summary.sort_values("total_volume", ascending=False).reset_index(drop=True)
 
                 total_volume_all = per_client["volume"].sum()
-                avg_client_per_period_all = total_volume_all / total_clients / k_int_cluster if (total_clients and k_int_cluster) else 0
+                total_active_periods_all = per_client["active_periods"].sum()
+                avg_client_per_period_all = (
+                    total_volume_all / total_active_periods_all if total_active_periods_all else 0
+                )
                 avg_regularity_all = per_client["regularity"].mean()
                 row_итого = pd.DataFrame(
                     [{
@@ -1034,7 +1037,7 @@ if uploaded_file_1 and uploaded_file_2:
                 col_cluster = "Кластер"
                 col_volume = "Объём продукта за период"
                 col_pct_volume = "% объёма"
-                col_avg_client = f"Средний объём продукта на клиента в {period_unit}"
+                col_avg_client = f"Средний объём на клиента в {period_unit} покупки"
                 period_word_plural = "месяцев" if is_months else "недель"
                 days_per_period = 30 if is_months else 7
                 summary["pct_fmt"] = summary["pct"].round(1).astype(str) + "%"
@@ -1135,7 +1138,9 @@ if uploaded_file_1 and uploaded_file_2:
                     line1 = f"Присутствуют в {x_per} {period_word_plural} из {k_int_cluster} ({y_pct}%)"
                     if avg_r > 0.001:
                         z_days = max(1, round(days_per_period / avg_r))
-                        line2 = f"Приходят в среднем каждые {z_days} дн."
+                        window_days = k_int_cluster * days_per_period
+                        suffix = " (вероятно реже)" if z_days >= window_days else ""
+                        line2 = f"Приходят в среднем каждые {z_days} дн.{suffix}"
                     else:
                         line2 = "Приходят редко или одна покупка"
                     rows_html.append(
