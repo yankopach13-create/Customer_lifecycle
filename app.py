@@ -1161,21 +1161,22 @@ if uploaded_file_1 and uploaded_file_2:
                 cluster_table_html = (
                     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                     "<style>\n"
-                    ".cluster-table-wrap { margin: 0.5rem 0; max-height: 70vh; overflow: auto; }\n"
-                    ".cluster-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; "
+                    "body { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 1rem; margin: 0; padding: 0.5rem; }\n"
+                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow: auto; }\n"
+                    ".cluster-table { width: 100%; min-width: 960px; border-collapse: separate; border-spacing: 0; font-size: 1rem; "
                     "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }\n"
                     ".cluster-table thead th { position: sticky; top: 0; z-index: 100; "
-                    "background: #343a40; color: #fff; font-weight: 600; padding: 6px 8px; text-align: left; "
-                    "font-size: 0.8rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }\n"
-                    ".cluster-table td { padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }\n"
-                    ".cluster-table td:nth-child(1) { font-weight: 500; }\n"
-                    ".cluster-details-wrap summary { list-style: none; cursor: pointer; }\n"
+                    "background: #343a40; color: #fff; font-weight: 600; padding: 10px 14px; text-align: left; "
+                    "font-size: 1rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }\n"
+                    ".cluster-table td { padding: 10px 14px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; font-size: 1rem; }\n"
+                    ".cluster-table td:nth-child(1) { font-weight: 500; min-width: 140px; }\n"
+                    ".cluster-details-wrap summary { list-style: none; cursor: pointer; font-size: 1rem; }\n"
                     ".cluster-details-wrap summary::-webkit-details-marker { display: none; }\n"
-                    ".cluster-arrow { display: inline-block; margin-right: 4px; font-size: 0.65rem; color: #6c757d; }\n"
+                    ".cluster-arrow { display: inline-block; margin-right: 6px; font-size: 0.75rem; color: #6c757d; }\n"
                     ".cluster-details-wrap[open] .cluster-arrow { transform: rotate(90deg); }\n"
-                    ".cluster-details { margin-top: 8px; padding: 8px 10px; background: #f8f9fa; color: #212529; "
-                    "border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.75rem; text-align: left; }\n"
-                    ".cluster-detail-block { margin-bottom: 4px; }\n"
+                    ".cluster-details { margin-top: 10px; padding: 10px 12px; background: #f8f9fa; color: #212529; "
+                    "border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.9375rem; text-align: left; }\n"
+                    ".cluster-detail-block { margin-bottom: 6px; }\n"
                     ".cluster-detail-block:last-child { margin-bottom: 0; }\n"
                     ".cluster-detail-block strong { font-weight: 600; font-style: italic; }\n"
                     ".cluster-detail-block:first-child strong { color: #5c2d91; }\n"
@@ -1188,6 +1189,6 @@ if uploaded_file_1 and uploaded_file_2:
                     f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
                     "</body></html>"
                 )
-                components.html(cluster_table_html, height=min(600, 200 + len(rows_html) * 36), scrolling=True)
+                components.html(cluster_table_html, height=min(900, 320 + len(rows_html) * 52), scrolling=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
