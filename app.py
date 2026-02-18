@@ -1174,9 +1174,10 @@ if uploaded_file_1 and uploaded_file_2:
                 cluster_table_html = (
                     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                     "<style>\n"
-                    "body { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 1rem; margin: 0; padding: 0.5rem; box-sizing: border-box; }\n"
-                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; background: #e9ecef; padding: 8px; border-radius: 8px; }\n"
-                    ".cluster-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9375rem; "
+                    "html, body { overflow-x: hidden; max-width: 100%; box-sizing: border-box; }\n"
+                    "body { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 1rem; margin: 0; padding: 0.5rem; }\n"
+                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; max-width: 100%; background: #e9ecef; padding: 8px; border-radius: 8px; }\n"
+                    ".cluster-table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9375rem; "
                     "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); background: #f1f3f5; }\n"
                     ".cluster-table thead th { position: sticky; top: 0; z-index: 100; box-sizing: border-box; "
                     "background: #343a40; color: #fff; font-weight: 600; padding: 6px 10px; text-align: left; "
