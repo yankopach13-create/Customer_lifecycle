@@ -1355,6 +1355,14 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="lifecycle_k_periods",
             )
+            cluster_options_lc = CLUSTER_8_ORDER + ["Не покупали"]
+            selected_clusters_lifecycle = st.multiselect(
+                "Кластеры",
+                options=cluster_options_lc,
+                default=cluster_options_lc,
+                key="lifecycle_clusters",
+                help="По каким кластерам строить статистику по неделям. По умолчанию — все кластеры в выбранных когортах.",
+            )
 
         idx_start_lc = cohort_labels.index(cohort_start_lc)
         idx_end_lc = cohort_labels.index(cohort_end_lc)
@@ -1393,10 +1401,10 @@ if uploaded_file_1 and uploaded_file_2:
                 other_cats = set(all_categories) - anchor_cats - set(analyzable_list)
 
                 df1_lc = df1_with_period[df1_with_period["_client_norm"].isin(cohort_clients_lc)][
-                    ["_client_norm", "period_rank", COL_CATEGORY]
+                    ["_client_norm", "period_rank", COL_CATEGORY, COL_QUANTITY]
                 ].copy()
                 df2_lc = df2_with_period[df2_with_period["_client_norm"].isin(cohort_clients_lc)][
-                    ["_client_norm", "period_rank", COL_CATEGORY]
+                    ["_client_norm", "period_rank", COL_CATEGORY, COL_QUANTITY]
                 ].copy()
                 df_purchases_lc = pd.concat([df1_lc.rename(columns={"_client_norm": "client_id"}), df2_lc.rename(columns={"_client_norm": "client_id"})], ignore_index=True)
 
@@ -1432,100 +1440,182 @@ if uploaded_file_1 and uploaded_file_2:
                 else:
                     df_cw["bought_any_analyzable"] = False
 
-                N_lc = len(cohort_clients_lc)
-                agg_d = {"bought_anchor": ("bought_anchor", "sum"), "bought_other": ("bought_other", "sum"), "no_purchase": ("no_purchase", "sum"), "bought_any_analyzable": ("bought_any_analyzable", "sum")}
-                for i in range(len(analyzable_list)):
-                    agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
-                summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
-
-                half_life_week = None
-                for _, r in summary_by_week.iterrows():
-                    if r["bought_any_analyzable"] / N_lc < 0.5:
-                        half_life_week = int(r["t"])
-                        break
-                avg_periods_analyzable = df_cw.groupby("client_id")["bought_any_analyzable"].sum().mean() if analyzable_list else 0.0
-
-                period_unit_lc = "месяц" if is_months else "неделя"
-                period_unit_plural = "месяцев" if is_months else "недель"
-
-                table_rows = []
-                for _, row in summary_by_week.iterrows():
-                    t = int(row["t"])
-                    cells = [str(t)]
-                    cells.append(f"{int(row['bought_anchor'])} ({100 * row['bought_anchor'] / N_lc:.1f}%)")
-                    for i in range(len(analyzable_list)):
-                        cells.append(f"{int(row[f'bought_a{i}'])} ({100 * row[f'bought_a{i}'] / N_lc:.1f}%)")
-                    cells.append(f"{int(row['bought_other'])} ({100 * row['bought_other'] / N_lc:.1f}%)")
-                    cells.append(f"{int(row['no_purchase'])} ({100 * row['no_purchase'] / N_lc:.1f}%)")
-                    table_rows.append(cells)
-
-                col_headers = ["Неделя/месяц от когорты", "Покупают якорный"]
-                col_headers.extend([f"Покупают {c}" for c in analyzable_list])
-                col_headers.extend(["Покупают прочие", "Нет покупок"])
-
-                df_display = pd.DataFrame(table_rows, columns=col_headers)
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-                last = summary_by_week.iloc[-1]
-                pct_anchor_last = 100 * last["bought_anchor"] / N_lc
-                pct_other_last = 100 * last["bought_other"] / N_lc
-                pct_none_last = 100 * last["no_purchase"] / N_lc
-                pct_analyzable_last = [100 * last[f"bought_a{i}"] / N_lc for i in range(len(analyzable_list))]
-                first_row = summary_by_week.iloc[0]
-                pct_anchor_first = 100 * first_row["bought_anchor"] / N_lc
-
-                period_range_caption_lc = format_period_range_for_caption(
-                    cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
-                )
-                period_word_until = "недели" if not is_months else "месяца"
-                half_life_text = (
-                    f"Более половины когорты ещё покупают анализируемый продукт до {period_word_until} <span class=\"block-num\">{half_life_week}</span>."
-                    if half_life_week is not None
-                    else f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают анализируемый продукт."
-                )
-                avg_periods_text = (
-                    f"В среднем клиент когорты покупает анализируемый продукт в <span class=\"block-num\">{avg_periods_analyzable:.1f}</span> из <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}."
-                    if analyzable_list else ""
-                )
-
-                first_period_label = "в первом месяце" if is_months else "в первой неделе"
-                anchor_name_esc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                p1_html = (
-                    f"По выбранным когортам (<span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт, <span class=\"block-num\">{N_lc}</span> клиентов) в первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты: "
-                    f"доля клиентов, покупающих якорный продукт <span class=\"block-product\">{anchor_name_esc}</span>, {first_period_label} составляет <span class=\"block-num\">{pct_anchor_first:.1f}%</span>, "
-                    f"к концу периода — <span class=\"block-num\">{pct_anchor_last:.1f}%</span>."
-                )
-                p2_parts = []
-                if analyzable_list:
-                    p2_parts.append(
-                        "По анализируемым продуктам: "
-                        + ", ".join([f"<span class=\"block-product\">{c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</span> — <span class=\"block-num\">{pct_analyzable_last[i]:.1f}%</span> к концу периода" for i, c in enumerate(analyzable_list)])
-                        + "."
+                # Кластеры по объёму и регулярности анализируемого в окне K (как в блоке «Кластерный анализ»)
+                per_client_lc = pd.DataFrame({"client_id": sorted(cohort_clients_lc)})
+                per_client_lc["cohort_rank"] = per_client_lc["client_id"].map(client_cohort_rank_lc).astype(float)
+                df_analyzable_lc = df_purchases_lc[df_purchases_lc[COL_CATEGORY].isin(analyzable_list)].copy()
+                df_analyzable_lc = df_analyzable_lc.merge(per_client_lc[["client_id", "cohort_rank"]], on="client_id", how="inner")
+                df_analyzable_lc["_in_window"] = (df_analyzable_lc["period_rank"] >= df_analyzable_lc["cohort_rank"]) & (df_analyzable_lc["period_rank"] < df_analyzable_lc["cohort_rank"] + k_int_lc)
+                df_analyzable_lc = df_analyzable_lc[df_analyzable_lc["_in_window"]]
+                if not df_analyzable_lc.empty:
+                    agg_lc = (
+                        df_analyzable_lc.groupby("client_id")
+                        .agg(volume=(COL_QUANTITY, "sum"), active_periods=("period_rank", "nunique"))
+                        .reset_index()
                     )
-                p2_parts.append(
-                    f"Доля покупающих прочие категории к концу периода — <span class=\"block-num\">{pct_other_last:.1f}%</span>; "
-                    f"без покупок в последнюю {period_unit_lc} — <span class=\"block-num\">{pct_none_last:.1f}%</span>."
-                )
-                p2_html = " ".join(p2_parts)
-                p3_html = half_life_text
-                p4_html = avg_periods_text if avg_periods_text else ""
+                    per_client_lc = per_client_lc.merge(agg_lc, on="client_id", how="left")
+                if "volume" not in per_client_lc.columns:
+                    per_client_lc["volume"] = 0
+                else:
+                    per_client_lc["volume"] = per_client_lc["volume"].fillna(0).astype(int)
+                if "active_periods" not in per_client_lc.columns:
+                    per_client_lc["active_periods"] = 0
+                else:
+                    per_client_lc["active_periods"] = per_client_lc["active_periods"].fillna(0).astype(int)
+                per_client_lc["regularity"] = (per_client_lc["active_periods"] / k_int_lc).clip(0, 1).astype(float)
+                per_client_lc["cluster"] = "Не покупали"
+                df_fit_lc = per_client_lc[per_client_lc["volume"] > 0].copy()
+                if not df_fit_lc.empty:
+                    v33_lc = float(df_fit_lc["volume"].quantile(1 / 3))
+                    v67_lc = float(df_fit_lc["volume"].quantile(2 / 3))
+                    r33, r67 = 1 / 3, 2 / 3
 
-                lifecycle_box_html = (
-                    "<style>"
-                    ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
-                    ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }"
-                    ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
-                    ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
-                    "</style>"
-                    f'<div class="block-result-box">'
-                    f'<span class="block-period-caption">{period_range_caption_lc}</span>'
-                    f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p1_html}</p>'
-                    f'<p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">{p2_html}</p>'
-                    f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p3_html}</p>'
-                )
-                if p4_html:
-                    lifecycle_box_html += f'<p style="margin: 0; font-size: 1rem;">{p4_html}</p>'
-                lifecycle_box_html += "</div>"
-                st.markdown(lifecycle_box_html, unsafe_allow_html=True)
+                    def _assign_cluster_lc(row):
+                        v, r = row["volume"], row["regularity"]
+                        if v >= v67_lc:
+                            if r >= r67:
+                                return "Активные (VIP)"
+                            if r >= r33:
+                                return "Регулярные с высоким объёмом"
+                            return "Разовая крупная покупка"
+                        if v >= v33_lc:
+                            if r >= r67:
+                                return "Средняя активность"
+                            if r >= r33:
+                                return "Средняя активность"
+                            return "Крупные нерегулярные"
+                        if r >= r67:
+                            return "Периодические (малый объём)"
+                        if r >= r33:
+                            return "Низкая активность"
+                        return "Разовая покупка"
+
+                    df_fit_lc["cluster"] = df_fit_lc.apply(_assign_cluster_lc, axis=1)
+                    per_client_lc = per_client_lc.merge(df_fit_lc[["client_id", "cluster"]], on="client_id", how="left", suffixes=("", "_fit"))
+                    per_client_lc["cluster"] = per_client_lc["cluster_fit"].fillna(per_client_lc["cluster"])
+                    per_client_lc = per_client_lc.drop(columns=["cluster_fit"], errors="ignore")
+
+                selected_cluster_set = set(selected_clusters_lifecycle) if selected_clusters_lifecycle else set(cluster_options_lc)
+                cohort_clients_filtered = set(per_client_lc[per_client_lc["cluster"].isin(selected_cluster_set)]["client_id"].tolist())
+                df_cw = df_cw[df_cw["client_id"].isin(cohort_clients_filtered)]
+
+                N_lc = len(cohort_clients_filtered)
+                if N_lc == 0:
+                    st.warning("В выбранных кластерах нет клиентов. Выберите другие кластеры или когорты.")
+                else:
+                    agg_d = {"bought_anchor": ("bought_anchor", "sum"), "bought_other": ("bought_other", "sum"), "no_purchase": ("no_purchase", "sum"), "bought_any_analyzable": ("bought_any_analyzable", "sum")}
+                    for i in range(len(analyzable_list)):
+                        agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
+                    summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
+
+                    half_life_week = None
+                    pct_before_half = None
+                    pct_at_half = None
+                    for _, r in summary_by_week.iterrows():
+                        if r["bought_any_analyzable"] / N_lc < 0.5:
+                            half_life_week = int(r["t"])
+                            pct_at_half = 100 * r["bought_any_analyzable"] / N_lc
+                            row_before = summary_by_week[summary_by_week["t"] == half_life_week - 1]
+                            pct_before_half = 100 * row_before.iloc[0]["bought_any_analyzable"] / N_lc if half_life_week > 0 and not row_before.empty else None
+                            break
+                    df_cw_sorted = df_cw.sort_values(["client_id", "t"])
+                    first_miss = df_cw_sorted[df_cw_sorted["bought_any_analyzable"] == False].groupby("client_id")["t"].min().reset_index().rename(columns={"t": "first_miss"})
+                    clients_all = df_cw_sorted["client_id"].unique()
+                    consec = pd.DataFrame({"client_id": clients_all}).merge(first_miss, on="client_id", how="left")
+                    consec["consecutive_weeks"] = consec["first_miss"].fillna(k_int_lc).astype(int)
+                    avg_consecutive_weeks = consec["consecutive_weeks"].mean() if len(consec) else 0.0
+
+                    period_unit_lc = "месяц" if is_months else "неделя"
+                    period_unit_plural = "месяцев" if is_months else "недель"
+
+                    table_rows = []
+                    for _, row in summary_by_week.iterrows():
+                        t = int(row["t"])
+                        cells = [str(t)]
+                        cells.append(f"{int(row['bought_anchor'])} ({100 * row['bought_anchor'] / N_lc:.1f}%)")
+                        for i in range(len(analyzable_list)):
+                            cells.append(f"{int(row[f'bought_a{i}'])} ({100 * row[f'bought_a{i}'] / N_lc:.1f}%)")
+                        cells.append(f"{int(row['bought_other'])} ({100 * row['bought_other'] / N_lc:.1f}%)")
+                        cells.append(f"{int(row['no_purchase'])} ({100 * row['no_purchase'] / N_lc:.1f}%)")
+                        table_rows.append(cells)
+
+                    col_headers = ["Неделя/месяц от когорты", "Покупают якорный"]
+                    col_headers.extend([f"Покупают {c}" for c in analyzable_list])
+                    col_headers.extend(["Покупают прочие", "Нет покупок"])
+
+                    df_display = pd.DataFrame(table_rows, columns=col_headers)
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+                    last = summary_by_week.iloc[-1]
+                    pct_anchor_last = 100 * last["bought_anchor"] / N_lc
+                    pct_other_last = 100 * last["bought_other"] / N_lc
+                    pct_none_last = 100 * last["no_purchase"] / N_lc
+                    pct_analyzable_last = [100 * last[f"bought_a{i}"] / N_lc for i in range(len(analyzable_list))]
+                    first_row = summary_by_week.iloc[0]
+                    pct_anchor_first = 100 * first_row["bought_anchor"] / N_lc
+
+                    period_range_caption_lc = format_period_range_for_caption(
+                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
+                    )
+                    period_word_until = "недели" if not is_months else "месяца"
+                    period_word_on = "неделе" if not is_months else "месяце"
+                    if half_life_week is not None and pct_at_half is not None:
+                        pct_bef = f"{pct_before_half:.1f}%" if pct_before_half is not None else "—"
+                        half_life_text = (
+                            f"Доля покупающих анализируемый падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
+                            f"(на {period_word_on} <span class=\"block-num\">{half_life_week - 1}</span> — <span class=\"block-num\">{pct_bef}</span>, "
+                            f"на {period_word_on} <span class=\"block-num\">{half_life_week}</span> — <span class=\"block-num\">{pct_at_half:.1f}%</span>)."
+                        )
+                    elif half_life_week is not None:
+                        half_life_text = (
+                            f"Доля покупающих анализируемый падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{half_life_week}</span> "
+                            f"(на {period_word_on} <span class=\"block-num\">{half_life_week}</span> — <span class=\"block-num\">{pct_at_half:.1f}%</span>)."
+                        )
+                    else:
+                        half_life_text = f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают анализируемый продукт."
+                    avg_periods_text = (
+                        f"В среднем клиент когорты покупает анализируемый продукт <span class=\"block-num\">{avg_consecutive_weeks:.1f}</span> {period_unit_plural} подряд с начала, затем перестаёт или переходит на прочие."
+                        if analyzable_list else ""
+                    )
+
+                    first_period_label = "в первом месяце" if is_months else "в первой неделе"
+                    anchor_name_esc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    p1_html = (
+                        f"По выбранным когортам (<span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт, <span class=\"block-num\">{N_lc}</span> клиентов) в первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты: "
+                        f"доля клиентов, покупающих якорный продукт <span class=\"block-product\">{anchor_name_esc}</span>, {first_period_label} составляет <span class=\"block-num\">{pct_anchor_first:.1f}%</span>, "
+                        f"к концу периода — <span class=\"block-num\">{pct_anchor_last:.1f}%</span>."
+                    )
+                    p2_parts = []
+                    if analyzable_list:
+                        p2_parts.append(
+                            "По анализируемым продуктам: "
+                            + ", ".join([f"<span class=\"block-product\">{c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</span> — <span class=\"block-num\">{pct_analyzable_last[i]:.1f}%</span> к концу периода" for i, c in enumerate(analyzable_list)])
+                            + "."
+                        )
+                    p2_parts.append(
+                        f"Доля покупающих прочие категории к концу периода — <span class=\"block-num\">{pct_other_last:.1f}%</span>; "
+                        f"без покупок в последнюю {period_unit_lc} — <span class=\"block-num\">{pct_none_last:.1f}%</span>."
+                    )
+                    p2_html = " ".join(p2_parts)
+                    p3_html = half_life_text
+                    p4_html = avg_periods_text if avg_periods_text else ""
+
+                    lifecycle_box_html = (
+                        "<style>"
+                        ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
+                        ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }"
+                        ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
+                        ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
+                        "</style>"
+                        f'<div class="block-result-box">'
+                        f'<span class="block-period-caption">{period_range_caption_lc}</span>'
+                        f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p1_html}</p>'
+                        f'<p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">{p2_html}</p>'
+                        f'<p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{p3_html}</p>'
+                    )
+                    if p4_html:
+                        lifecycle_box_html += f'<p style="margin: 0; font-size: 1rem;">{p4_html}</p>'
+                    lifecycle_box_html += "</div>"
+                    st.markdown(lifecycle_box_html, unsafe_allow_html=True)
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
