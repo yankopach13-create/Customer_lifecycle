@@ -1189,7 +1189,7 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                 with col_copy_btn:
                     ids_for_copy = per_client[per_client["cluster"].isin(selected_clusters_for_copy)]["client_id"].tolist()
-                    copy_data_str = ",".join(str(c) for c in ids_for_copy)
+                    copy_data_str = "\n".join(str(c) for c in ids_for_copy)
                     n_copy = len(ids_for_copy)
                     copy_label = f"📋 Копировать коды ({n_copy})" if n_copy else "📋 Копировать коды (0)"
                     create_copy_button(copy_data_str, copy_label, "copy_cluster_codes")
