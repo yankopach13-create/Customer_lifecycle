@@ -1355,14 +1355,15 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="lifecycle_k_periods",
             )
-            cluster_options_lc = CLUSTER_8_ORDER + ["Не покупали"]
-            selected_clusters_lifecycle = st.multiselect(
-                "Кластеры",
-                options=cluster_options_lc,
-                default=cluster_options_lc,
-                key="lifecycle_clusters",
-                help="По каким кластерам строить статистику по неделям. По умолчанию — все кластеры в выбранных когортах.",
-            )
+        cluster_options_display_lc = ["Все кластеры"] + [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
+        n_cluster_cols = len(cluster_options_display_lc)
+        st.caption("Кластеры для статистики по неделям (сначала вправо, затем вниз)")
+        cols_clusters_lc = st.columns(n_cluster_cols)
+        selected_clusters_lifecycle = []
+        for i, opt in enumerate(cluster_options_display_lc):
+            with cols_clusters_lc[i]:
+                if st.checkbox(opt, value=(i == 0), key=f"lifecycle_cluster_cb_{i}"):
+                    selected_clusters_lifecycle.append(opt)
 
         idx_start_lc = cohort_labels.index(cohort_start_lc)
         idx_end_lc = cohort_labels.index(cohort_end_lc)
@@ -1495,7 +1496,12 @@ if uploaded_file_1 and uploaded_file_2:
                     per_client_lc["cluster"] = per_client_lc["cluster_fit"].fillna(per_client_lc["cluster"])
                     per_client_lc = per_client_lc.drop(columns=["cluster_fit"], errors="ignore")
 
-                selected_cluster_set = set(selected_clusters_lifecycle) if selected_clusters_lifecycle else set(cluster_options_lc)
+                display_to_full_lc = {_cluster_display_name(c): c for c in CLUSTER_8_ORDER}
+                display_to_full_lc["Не покупали"] = "Не покупали"
+                if "Все кластеры" in selected_clusters_lifecycle or not selected_clusters_lifecycle:
+                    selected_cluster_set = set(CLUSTER_8_ORDER + ["Не покупали"])
+                else:
+                    selected_cluster_set = set(display_to_full_lc.get(s, s) for s in selected_clusters_lifecycle)
                 cohort_clients_filtered = set(per_client_lc[per_client_lc["cluster"].isin(selected_cluster_set)]["client_id"].tolist())
                 df_cw = df_cw[df_cw["client_id"].isin(cohort_clients_filtered)]
 
