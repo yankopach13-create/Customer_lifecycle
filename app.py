@@ -1176,9 +1176,10 @@ if uploaded_file_1 and uploaded_file_2:
                     "<style>\n"
                     "html, body { overflow-x: hidden; max-width: 100%; box-sizing: border-box; }\n"
                     "body { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 1rem; margin: 0; padding: 0.5rem; }\n"
-                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; max-width: 100%; background: #dee2e6; padding: 8px; border-radius: 8px; }\n"
+                    ".cluster-table-shell { margin: 0.5rem 0; background: #dee2e6; padding: 8px; border-radius: 8px; overflow: hidden; }\n"
+                    ".cluster-table-wrap { min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; max-width: 100%; }\n"
                     ".cluster-table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9375rem; "
-                    "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); background: #e2e6ea; }\n"
+                    "border: 1px solid #dee2e6; border-radius: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.06); background: #e2e6ea; }\n"
                     ".cluster-table thead th { position: sticky; top: 0; z-index: 100; box-sizing: border-box; "
                     "background: #343a40; color: #fff; font-weight: 600; padding: 6px 10px; text-align: left; "
                     "font-size: 0.9375rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); line-height: 1.3; "
@@ -1217,7 +1218,7 @@ if uploaded_file_1 and uploaded_file_2:
                     ".cluster-table tbody tr:first-child:hover td { background: rgba(128, 0, 128, 0.5) !important; }\n"
                     ".cluster-table tbody tr:first-child .cluster-arrow { color: rgba(255,255,255,0.9); }\n"
                     "</style></head><body>"
-                    f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
+                    f'<div class="cluster-table-shell"><div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div></div>'
                     "<script>"
                     "document.querySelectorAll('.cluster-details-wrap').forEach(function(d){"
                     "  d.addEventListener('toggle', function(){"
