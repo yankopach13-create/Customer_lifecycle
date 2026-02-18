@@ -1160,7 +1160,7 @@ if uploaded_file_1 and uploaded_file_2:
                 st.markdown(
                         f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
                         '<style>'
-                        '.cluster-table-wrap {{ margin: 0.5rem 0; overflow-x: auto; }} '
+                        '.cluster-table-wrap {{ margin: 0.5rem 0; max-height: 70vh; overflow: auto; }} '
                         '.cluster-table {{ width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; '
                         'border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }} '
                         '.cluster-table thead th {{ position: sticky; top: 0; z-index: 100; '
