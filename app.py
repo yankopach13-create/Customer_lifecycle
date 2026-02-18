@@ -1048,28 +1048,31 @@ if uploaded_file_1 and uploaded_file_2:
                     v67s = f"{v67:.0f}" if v67 == int(v67) else f"{v67:.1f}"
                     pw = "месяцев" if is_m else "недель"
                     dp = 30 if is_m else 7
-                    # Интервал в днях из доли: каждые (dp/доля) дней
+                    n33 = max(1, round(1 / 3 * k))
+                    n67 = max(1, round(2 / 3 * k))
+
                     def _days(ratio: float) -> str:
                         if ratio <= 0:
                             return "—"
                         d = round(dp / ratio)
                         return f"{max(1, int(d))} дн."
+
                     if name == "Активные (VIP)":
-                        return f"Объём ≥ {v67s} ед. (верхняя треть). Присутствуют в ≥{max(1, round(2/3*k))} {pw} из {k} (≥67%). Приходят не реже чем каждые {_days(2/3)}."
+                        return f"Объём ≥ {v67s} ед. (верхняя треть) за весь период. Присутствуют не реже {n67} {pw} из {k} (67%). Приходят не реже чем каждые {_days(2/3)}."
                     if name == "Регулярные с высоким объёмом":
-                        return f"Объём ≥ {v67s} ед. Присутствуют в 33–67% {pw} из {k}. Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
+                        return f"Объём ≥ {v67s} ед. за весь период. Присутствуют в {n33}–{n67} {pw} из {k} (33–67%). Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
                     if name == "Разовая крупная покупка":
-                        return f"Объём ≥ {v67s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)}."
+                        return f"Объём ≥ {v67s} ед. за весь период. Присутствуют реже {n33} {pw} из {k} (<33%). Приходят реже чем каждые {_days(0.33)}."
                     if name == "Средняя активность":
-                        return f"Объём {v33s}–{v67s} ед. (средняя треть). Присутствуют не реже 33% {pw} из {k}. Приходят не реже чем каждые {_days(1/3)}."
+                        return f"Объём {v33s}–{v67s} ед. (средняя треть) за весь период. Присутствуют не реже {n33} {pw} из {k} (33%). Приходят не реже чем каждые {_days(1/3)}."
                     if name == "Крупные нерегулярные":
-                        return f"Объём {v33s}–{v67s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)}."
+                        return f"Объём {v33s}–{v67s} ед. за весь период. Присутствуют реже {n33} {pw} из {k} (<33%). Приходят реже чем каждые {_days(0.33)}."
                     if name == "Периодические (малый объём)":
-                        return f"Объём < {v33s} ед. (нижняя треть). Присутствуют в ≥{max(1, round(2/3*k))} {pw} из {k} (≥67%). Приходят не реже чем каждые {_days(2/3)}."
+                        return f"Объём < {v33s} ед. (нижняя треть) за весь период. Присутствуют не реже {n67} {pw} из {k} (67%). Приходят не реже чем каждые {_days(2/3)}."
                     if name == "Низкая активность":
-                        return f"Объём < {v33s} ед. Присутствуют в 33–67% {pw} из {k}. Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
+                        return f"Объём < {v33s} ед. за весь период. Присутствуют в {n33}–{n67} {pw} из {k} (33–67%). Приходят в среднем каждые {_days(0.5)}–{_days(1/3)}."
                     if name == "Разовая покупка":
-                        return f"Объём < {v33s} ед. Присутствуют реже 33% {pw} из {k}. Приходят реже чем каждые {_days(0.33)} или одна покупка."
+                        return f"Объём < {v33s} ед. за весь период. Присутствуют реже {n33} {pw} из {k} (<33%). Приходят реже чем каждые {_days(0.33)} или одна покупка."
                     if name == "Не покупали":
                         return "Нет покупок анализируемого продукта в выбранном окне."
                     return ""
@@ -1172,13 +1175,13 @@ if uploaded_file_1 and uploaded_file_2:
                     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                     "<style>\n"
                     "body { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 1rem; margin: 0; padding: 0.5rem; box-sizing: border-box; }\n"
-                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; }\n"
-                    ".cluster-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 0.9375rem; "
-                    "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }\n"
+                    ".cluster-table-wrap { margin: 0.5rem 0; min-height: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden; width: 100%; background: #e9ecef; padding: 8px; border-radius: 8px; }\n"
+                    ".cluster-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9375rem; "
+                    "border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); background: #f1f3f5; }\n"
                     ".cluster-table thead th { position: sticky; top: 0; z-index: 100; box-sizing: border-box; "
                     "background: #343a40; color: #fff; font-weight: 600; padding: 6px 10px; text-align: left; "
                     "font-size: 0.9375rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); line-height: 1.3; "
-                    "word-wrap: break-word; overflow-wrap: break-word; }\n"
+                    "word-wrap: break-word; overflow-wrap: break-word; border: 1px solid #dee2e6; }\n"
                     ".cluster-table thead th:nth-child(1) { width: 16%; }\n"
                     ".cluster-table thead th:nth-child(2) { width: 8%; }\n"
                     ".cluster-table thead th:nth-child(3) { width: 8%; }\n"
@@ -1190,7 +1193,7 @@ if uploaded_file_1 and uploaded_file_2:
                     ".cluster-table thead th:nth-child(9) { width: 12%; }\n"
                     ".cluster-table thead th:nth-child(2), .cluster-table thead th:nth-child(3), .cluster-table thead th:nth-child(4), "
                     ".cluster-table thead th:nth-child(5), .cluster-table thead th:nth-child(6) { text-align: center; }\n"
-                    ".cluster-table td { padding: 5px 10px; border-bottom: 1px solid #eee; background: #fff; vertical-align: middle; font-size: 0.9375rem; line-height: 1.35; "
+                    ".cluster-table td { padding: 5px 10px; border: 1px solid #dee2e6; background: #f1f3f5; vertical-align: middle; font-size: 0.9375rem; line-height: 1.35; "
                     "word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }\n"
                     ".cluster-table td:nth-child(1) { font-weight: 500; }\n"
                     ".cluster-table td:nth-child(2), .cluster-table td:nth-child(3), .cluster-table td:nth-child(4), "
@@ -1199,8 +1202,8 @@ if uploaded_file_1 and uploaded_file_2:
                     ".cluster-details-wrap summary::-webkit-details-marker { display: none; }\n"
                     ".cluster-arrow { display: inline-block; margin-right: 4px; font-size: 0.7rem; color: #6c757d; }\n"
                     ".cluster-details-wrap[open] .cluster-arrow { transform: rotate(90deg); }\n"
-                    ".cluster-details-row td { padding: 0; border-bottom: 1px solid #dee2e6; vertical-align: top; }\n"
-                    ".cluster-details { padding: 10px 14px; background: #f8f9fa; color: #212529; "
+                    ".cluster-details-row td { padding: 0; border: 1px solid #dee2e6; background: #f1f3f5; vertical-align: top; }\n"
+                    ".cluster-details { padding: 10px 14px; background: #e9ecef; color: #212529; "
                     "border-left: 3px solid #6c757d; font-size: 0.875rem; line-height: 1.45; }\n"
                     ".cluster-details-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; max-width: 100%; }\n"
                     ".cluster-detail-block { min-width: 0; }\n"
