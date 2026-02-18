@@ -1115,6 +1115,7 @@ if uploaded_file_1 and uploaded_file_2:
                 def _escape_html(s: str) -> str:
                     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
+                num_columns = 8
                 rows_html = []
                 for row_idx, r in summary.iterrows():
                     cluster_name = r["cluster"]
@@ -1127,10 +1128,14 @@ if uploaded_file_1 and uploaded_file_2:
                         cell_cluster = (
                             f'<details class="cluster-details-wrap">'
                             f'<summary class="cluster-summary"><span class="cluster-arrow">▶</span> {_escape_html(display_name)}</summary>'
+                            f"</details>"
+                        )
+                        details_row_content = (
                             f'<div class="cluster-details">'
+                            f'<div class="cluster-details-inner">'
                             f'<div class="cluster-detail-block"><strong>Описание:</strong> {_escape_html(desc_text)}</div>'
                             f'<div class="cluster-detail-block"><strong>Критерии:</strong> {_escape_html(crit)}</div>'
-                            f"</div></details>"
+                            f"</div></div>"
                         )
                     pct_val = r["pct_fmt"]
                     avg_r = r["avg_regularity"] if pd.notna(r["avg_regularity"]) else 0
@@ -1150,6 +1155,11 @@ if uploaded_file_1 and uploaded_file_2:
                         f"<td>{int(r['total_volume'])}</td><td>{r['pct_volume_fmt']}</td><td>{r['avg_client_per_period']:.2f}</td>"
                         f"<td>{line1}</td><td>{line2}</td></tr>"
                     )
+                    if cluster_name != "Итого":
+                        rows_html.append(
+                            f'<tr class="cluster-details-row" style="display:none;">'
+                            f'<td colspan="{num_columns}">{details_row_content}</td></tr>'
+                        )
                 thead = (
                     f"<thead><tr>"
                     f"<th>{col_cluster}</th>"
@@ -1178,26 +1188,44 @@ if uploaded_file_1 and uploaded_file_2:
                     ".cluster-table thead th:nth-child(7) { width: 14%; }\n"
                     ".cluster-table thead th:nth-child(8) { width: 12%; }\n"
                     ".cluster-table thead th:nth-child(9) { width: 12%; }\n"
+                    ".cluster-table thead th:nth-child(2), .cluster-table thead th:nth-child(3), .cluster-table thead th:nth-child(4), "
+                    ".cluster-table thead th:nth-child(5), .cluster-table thead th:nth-child(6) { text-align: center; }\n"
                     ".cluster-table td { padding: 5px 10px; border-bottom: 1px solid #eee; background: #fff; vertical-align: middle; font-size: 0.9375rem; line-height: 1.35; "
                     "word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }\n"
                     ".cluster-table td:nth-child(1) { font-weight: 500; }\n"
+                    ".cluster-table td:nth-child(2), .cluster-table td:nth-child(3), .cluster-table td:nth-child(4), "
+                    ".cluster-table td:nth-child(5), .cluster-table td:nth-child(6) { text-align: center; }\n"
                     ".cluster-details-wrap summary { list-style: none; cursor: pointer; font-size: 0.9375rem; line-height: 1.3; }\n"
                     ".cluster-details-wrap summary::-webkit-details-marker { display: none; }\n"
                     ".cluster-arrow { display: inline-block; margin-right: 4px; font-size: 0.7rem; color: #6c757d; }\n"
                     ".cluster-details-wrap[open] .cluster-arrow { transform: rotate(90deg); }\n"
-                    ".cluster-details { margin-top: 6px; padding: 6px 10px; background: #f8f9fa; color: #212529; "
-                    "border: 1px solid #dee2e6; border-radius: 6px; font-size: 0.875rem; text-align: left; line-height: 1.35; }\n"
-                    ".cluster-detail-block { margin-bottom: 4px; }\n"
-                    ".cluster-detail-block:last-child { margin-bottom: 0; }\n"
-                    ".cluster-detail-block strong { font-weight: 600; font-style: italic; }\n"
+                    ".cluster-details-row td { padding: 0; border-bottom: 1px solid #dee2e6; vertical-align: top; }\n"
+                    ".cluster-details { padding: 10px 14px; background: #f8f9fa; color: #212529; "
+                    "border-left: 3px solid #6c757d; font-size: 0.875rem; line-height: 1.45; }\n"
+                    ".cluster-details-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; max-width: 100%; }\n"
+                    ".cluster-detail-block { min-width: 0; }\n"
+                    ".cluster-detail-block strong { font-weight: 600; font-style: italic; display: block; margin-bottom: 2px; }\n"
                     ".cluster-detail-block:first-child strong { color: #5c2d91; }\n"
                     ".cluster-detail-block:last-child strong { color: #e85d04; }\n"
+                    "@media (max-width: 640px) { .cluster-details-inner { grid-template-columns: 1fr; } }\n"
                     ".cluster-table tbody tr:hover td { background-color: #f8f9fa; }\n"
                     ".cluster-table tbody tr:first-child td { background: #e85d04 !important; color: #fff !important; font-weight: bold; }\n"
                     ".cluster-table tbody tr:first-child:hover td { background: #e85d04 !important; }\n"
                     ".cluster-table tbody tr:first-child .cluster-arrow { color: rgba(255,255,255,0.9); }\n"
                     "</style></head><body>"
                     f'<div class="cluster-table-wrap"><table class="cluster-table">{thead}{tbody}</table></div>'
+                    "<script>"
+                    "document.querySelectorAll('.cluster-details-wrap').forEach(function(d){"
+                    "  d.addEventListener('toggle', function(){"
+                    "    var tr = this.closest('tr');"
+                    "    if(!tr) return;"
+                    "    var next = tr.nextElementSibling;"
+                    "    if(next && next.classList.contains('cluster-details-row')){"
+                    "      next.style.display = this.open ? 'table-row' : 'none';"
+                    "    }"
+                    "  });"
+                    "});"
+                    "</script>"
                     "</body></html>"
                 )
                 components.html(cluster_table_html, height=min(800, 280 + len(rows_html) * 40), scrolling=True)
