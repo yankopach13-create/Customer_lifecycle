@@ -1319,5 +1319,164 @@ if uploaded_file_1 and uploaded_file_2:
                     "</body></html>"
                 )
                 components.html(cluster_table_html, height=min(800, 280 + len(rows_html) * 40), scrolling=True)
+
+        # --- Блок «Цикл жизни клиента якорного продукта» ---
+        st.divider()
+        st.subheader("Цикл жизни клиента якорного продукта")
+        st.markdown(f"Якорный продукт когорт: :violet[{category_label}]")
+        st.caption("По неделям/месяцам с момента когорты: доля когорты, покупающая якорный, выбранные анализируемые продукты, прочие категории или отсутствие покупок.")
+
+        col_cohorts_lc, col_analyzed_lc = st.columns([1, 1])
+        with col_cohorts_lc:
+            cohort_start_lc = st.selectbox(
+                "С когорты",
+                options=cohort_labels,
+                index=0,
+                key="lifecycle_cohort_start",
+            )
+            cohort_end_lc = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="lifecycle_cohort_end",
+            )
+        with col_analyzed_lc:
+            selected_categories_lifecycle = st.multiselect(
+                "Анализируемые продукты",
+                options=all_categories,
+                default=categories_from_doc1,
+                key="lifecycle_categories",
+                help="Категории для отслеживания по неделям (например, картриджи с жидкостью). Можно выбрать несколько.",
+            )
+            k_periods_lifecycle = st.number_input(
+                "Недель/месяцев с покупки якорного (включая период когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="lifecycle_k_periods",
+            )
+
+        idx_start_lc = cohort_labels.index(cohort_start_lc)
+        idx_end_lc = cohort_labels.index(cohort_end_lc)
+        if idx_start_lc <= idx_end_lc:
+            cohorts_to_use_lc = cohort_labels[idx_start_lc : idx_end_lc + 1]
+        else:
+            cohorts_to_use_lc = cohort_labels[idx_end_lc : idx_start_lc + 1]
+
+        if not cohorts_to_use_lc:
+            st.caption("Выберите хотя бы одну когорту.")
+        elif not selected_categories_lifecycle:
+            st.warning("Выберите хотя бы один анализируемый продукт.")
+        else:
+            cohort_clients_lc = set()
+            for lb in cohorts_to_use_lc:
+                r = cohort_ranks[lb]
+                pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
+                pm, ps = str(pm).strip(), str(ps).strip()
+                clients_r = df1[
+                    (df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm)
+                    & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)
+                ][COL_CLIENT]
+                cohort_clients_lc.update(_norm_client_id(clients_r).tolist())
+
+            if not cohort_clients_lc:
+                st.info("В выбранных когортах нет клиентов (по документу 1).")
+            else:
+                df1_cr_lc = df1_with_period.copy()
+                df1_cr_lc["_client_norm"] = _norm_client_id(df1_cr_lc[COL_CLIENT])
+                df1_cr_lc = df1_cr_lc[df1_cr_lc["_client_norm"].isin(cohort_clients_lc)]
+                client_cohort_rank_lc = df1_cr_lc.groupby("_client_norm")["period_rank"].min()
+
+                k_int_lc = int(k_periods_lifecycle)
+                anchor_cats = set(categories_from_doc1)
+                analyzable_list = list(selected_categories_lifecycle)
+                other_cats = set(all_categories) - anchor_cats - set(analyzable_list)
+
+                df1_lc = df1_with_period[df1_with_period["_client_norm"].isin(cohort_clients_lc)][
+                    ["_client_norm", "period_rank", COL_CATEGORY]
+                ].copy()
+                df2_lc = df2_with_period[df2_with_period["_client_norm"].isin(cohort_clients_lc)][
+                    ["_client_norm", "period_rank", COL_CATEGORY]
+                ].copy()
+                df_purchases_lc = pd.concat([df1_lc.rename(columns={"_client_norm": "client_id"}), df2_lc.rename(columns={"_client_norm": "client_id"})], ignore_index=True)
+
+                def _to_set(x):
+                    return x if isinstance(x, set) else set()
+
+                client_period_cats = (
+                    df_purchases_lc.groupby(["client_id", "period_rank"])[COL_CATEGORY]
+                    .apply(lambda s: set(s.dropna().unique().tolist()))
+                    .reset_index()
+                    .rename(columns={COL_CATEGORY: "categories"})
+                )
+
+                client_weeks = []
+                for c in cohort_clients_lc:
+                    r0 = client_cohort_rank_lc.get(c)
+                    if r0 is None or pd.isna(r0):
+                        continue
+                    r0 = int(r0)
+                    for t in range(k_int_lc):
+                        client_weeks.append({"client_id": c, "t": t, "period_rank": r0 + t})
+                df_cw = pd.DataFrame(client_weeks)
+                df_cw = df_cw.merge(client_period_cats, on=["client_id", "period_rank"], how="left")
+                df_cw["categories"] = df_cw["categories"].apply(_to_set)
+
+                df_cw["bought_anchor"] = df_cw["categories"].apply(lambda s: bool(s & anchor_cats))
+                for i, cat in enumerate(analyzable_list):
+                    df_cw[f"bought_a{i}"] = df_cw["categories"].apply(lambda s, c=cat: c in s)
+                df_cw["bought_other"] = df_cw["categories"].apply(lambda s: bool(s & other_cats))
+                df_cw["no_purchase"] = df_cw["categories"].apply(lambda s: len(s) == 0)
+
+                N_lc = len(cohort_clients_lc)
+                agg_d = {"bought_anchor": ("bought_anchor", "sum"), "bought_other": ("bought_other", "sum"), "no_purchase": ("no_purchase", "sum")}
+                for i in range(len(analyzable_list)):
+                    agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
+                summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
+
+                period_unit_lc = "месяц" if is_months else "неделя"
+                period_unit_plural = "месяцев" if is_months else "недель"
+
+                table_rows = []
+                for _, row in summary_by_week.iterrows():
+                    t = int(row["t"])
+                    cells = [str(t)]
+                    cells.append(f"{int(row['bought_anchor'])} ({100 * row['bought_anchor'] / N_lc:.1f}%)")
+                    for i in range(len(analyzable_list)):
+                        cells.append(f"{int(row[f'bought_a{i}'])} ({100 * row[f'bought_a{i}'] / N_lc:.1f}%)")
+                    cells.append(f"{int(row['bought_other'])} ({100 * row['bought_other'] / N_lc:.1f}%)")
+                    cells.append(f"{int(row['no_purchase'])} ({100 * row['no_purchase'] / N_lc:.1f}%)")
+                    table_rows.append(cells)
+
+                col_headers = ["Неделя/месяц от когорты", "Покупают якорный"]
+                col_headers.extend([f"Покупают {c}" for c in analyzable_list])
+                col_headers.extend(["Покупают прочие", "Нет покупок"])
+
+                df_display = pd.DataFrame(table_rows, columns=col_headers)
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+                last = summary_by_week.iloc[-1]
+                pct_anchor_last = 100 * last["bought_anchor"] / N_lc
+                pct_other_last = 100 * last["bought_other"] / N_lc
+                pct_none_last = 100 * last["no_purchase"] / N_lc
+                pct_analyzable_last = [100 * last[f"bought_a{i}"] / N_lc for i in range(len(analyzable_list))]
+                first_row = summary_by_week.iloc[0]
+                pct_anchor_first = 100 * first_row["bought_anchor"] / N_lc
+
+                first_period_label = "в первом месяце" if is_months else "в первой неделе"
+                conclusions_parts = [
+                    f"По выбранным когортам ({len(cohorts_to_use_lc)} когорт, {N_lc} клиентов) в первые {k_int_lc} {period_unit_plural} с момента когорты: "
+                    f"доля клиентов, покупающих якорный продукт, {first_period_label} составляет {pct_anchor_first:.1f}%, "
+                    f"к концу периода — {pct_anchor_last:.1f}%. "
+                ]
+                if analyzable_list:
+                    conclusions_parts.append(
+                        "По анализируемым продуктам: " + ", ".join([f"«{c}» — {pct_analyzable_last[i]:.1f}% к концу периода" for i, c in enumerate(analyzable_list)]) + ". "
+                    )
+                conclusions_parts.append(
+                    f"Доля покупающих только прочие категории к концу периода — {pct_other_last:.1f}%; "
+                    f"без покупок в последнюю {period_unit_lc} — {pct_none_last:.1f}%."
+                )
+                st.markdown("**Выводы:** " + "".join(conclusions_parts))
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
