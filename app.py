@@ -59,7 +59,8 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
             width: 100%;
             padding: 12px 16px;
             background: transparent !important;
-            color: #333 !important;
+            color: #fff !important;
+            font-weight: 700 !important;
             border: 2px solid #adb5bd !important;
             border-radius: 8px !important;
             cursor: pointer !important;
@@ -67,7 +68,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
             font-size: 0.85rem !important;
             line-height: 1.3 !important;
             text-align: center !important;
-            min-height: 88px !important;
+            min-height: 50px !important;
             height: auto !important;
             display: flex !important;
             align-items: center !important;
@@ -82,7 +83,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
             position: relative !important;
         " onmouseover="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.borderColor='#6c757d'; }}" onmouseout="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; this.style.boxShadow='none'; this.style.borderColor='#adb5bd'; }}" onmousedown="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(0)'; }}" onmouseup="if (!this.classList.contains('copied')) {{ this.style.transform='translateY(-2px)'; }}">
             <div style="display: flex; align-items: center; justify-content: center; width: 100%;">
-                <p id="copy_btn_text_{safe_key}" style="margin: 0; padding: 0; font-size: 0.85rem; font-weight: 400; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{button_label}</p>
+                <p id="copy_btn_text_{safe_key}" style="margin: 0; padding: 0; font-size: 0.85rem; font-weight: 700; color: #fff; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">{button_label}</p>
             </div>
         </button>
     </div>
@@ -104,7 +105,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
                     button.classList.remove('copied');
                     button.style.background = 'transparent';
                     button.style.borderColor = '#adb5bd';
-                    button.style.color = '#333';
+                    button.style.color = '#fff';
                     button.style.transform = 'translateY(0)';
                     buttonText.innerHTML = originalText;
                 }}, 2500);
@@ -141,7 +142,7 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
         }}
     </script>
     """
-    components.html(html, height=100)
+    components.html(html, height=70)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -1181,7 +1182,7 @@ if uploaded_file_1 and uploaded_file_2:
                 col_clusters_sel, col_copy_btn = st.columns([1, 1])
                 with col_clusters_sel:
                     selected_clusters_for_copy = st.multiselect(
-                        "Выбор кластеров",
+                        "Выбор кластеров для копирования кодов клиента",
                         options=cluster_options,
                         default=[],
                         key="cluster_copy_multiselect",
