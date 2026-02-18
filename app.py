@@ -42,6 +42,11 @@ CLUSTER_8_DESCRIPTIONS = {
 }
 
 
+def _cluster_display_name(name: str) -> str:
+    """Убирает всё в скобках из названия кластера для отображения."""
+    return re.sub(r"\s*\([^)]*\)", "", name).strip() if name else name
+
+
 def _norm_client_id(ser: pd.Series) -> pd.Series:
     """Приводит коды клиентов к одному строковому виду (348385 и 348385.0 → одинаково)."""
     s = ser.astype(str).str.strip()
@@ -1021,11 +1026,15 @@ if uploaded_file_1 and uploaded_file_2:
                 )
                 summary = pd.concat([row_итого, summary], ignore_index=True)
                 summary["total_volume"] = summary["total_volume"].astype(int)
+                # Доля объёма по кластеру от общего объёма за период (%)
+                denom_vol = total_volume_all if total_volume_all else 1
+                summary["pct_volume"] = (100.0 * summary["total_volume"] / denom_vol).round(1)
+                summary["pct_volume_fmt"] = summary["pct_volume"].astype(str) + "%"
 
                 col_cluster = "Кластер"
                 col_volume = "Объём продукта за период"
+                col_pct_volume = "% объёма"
                 col_avg_client = f"Средний объём продукта на клиента в {period_unit}"
-                col_regularity = "Средняя регулярность покупки"
                 period_word_plural = "месяцев" if is_months else "недель"
                 days_per_period = 30 if is_months else 7
                 summary["pct_fmt"] = summary["pct"].round(1).astype(str) + "%"
@@ -1062,15 +1071,18 @@ if uploaded_file_1 and uploaded_file_2:
                     return ""
 
                 cluster_names_list = summary["cluster"].tolist()
+                cluster_display_to_full = {_cluster_display_name(n): n for n in cluster_names_list}
+                cluster_full_to_display = {n: _cluster_display_name(n) for n in cluster_names_list}
                 col_copy1, col_copy2, col_copy3 = st.columns([1, 1, 1])
                 with col_copy2:
                     st.caption("Копировать коды клиентов")
-                    copy_cluster_selected = st.selectbox(
+                    copy_cluster_display = st.selectbox(
                         "Кластер",
-                        options=cluster_names_list,
+                        options=[cluster_full_to_display[n] for n in cluster_names_list],
                         key="cluster_copy_select",
                         label_visibility="collapsed",
                     )
+                    copy_cluster_selected = cluster_display_to_full.get(copy_cluster_display, copy_cluster_display)
                 with col_copy3:
                     ids_for_copy = per_client[per_client["cluster"] == copy_cluster_selected]["client_id"].tolist()
                     copy_data_str = ",".join(str(c) for c in ids_for_copy)
@@ -1093,17 +1105,28 @@ if uploaded_file_1 and uploaded_file_2:
 
                 st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
                 desc = CLUSTER_8_DESCRIPTIONS
+                col_presence = "Присутствие"
+                col_regularity_2 = "Регулярность"
+
+                def _escape_html(s: str) -> str:
+                    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
                 rows_html = []
-                for _, r in summary.iterrows():
+                for row_idx, r in summary.iterrows():
                     cluster_name = r["cluster"]
                     crit = _criteria_text(cluster_name, v33_val, v67_val, k_int_cluster, is_months)
                     if cluster_name == "Итого":
                         cell_cluster = "<strong>Итого</strong>"
                     else:
-                        title_plain = ((desc.get(cluster_name, "") or "") + " Критерии: " + crit).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+                        display_name = _cluster_display_name(cluster_name)
+                        desc_text = desc.get(cluster_name, "") or ""
                         cell_cluster = (
-                            f'<span class="cluster-tt-icon" title="{title_plain}">?</span> '
-                            f'{cluster_name}'
+                            f'<details class="cluster-details-wrap">'
+                            f'<summary class="cluster-summary"><span class="cluster-arrow">▶</span> {_escape_html(display_name)}</summary>'
+                            f'<div class="cluster-details">'
+                            f'<div class="cluster-detail-block"><strong>Описание:</strong> {_escape_html(desc_text)}</div>'
+                            f'<div class="cluster-detail-block"><strong>Критерии:</strong> {_escape_html(crit)}</div>'
+                            f"</div></details>"
                         )
                     pct_val = r["pct_fmt"]
                     avg_r = r["avg_regularity"] if pd.notna(r["avg_regularity"]) else 0
@@ -1115,16 +1138,17 @@ if uploaded_file_1 and uploaded_file_2:
                         line2 = f"Приходят в среднем каждые {z_days} дн."
                     else:
                         line2 = "Приходят редко или одна покупка"
-                    reg_val = f"{line1}<br>{line2}"
                     rows_html.append(
                         f"<tr><td>{cell_cluster}</td>"
                         f"<td>{int(r['clients'])}</td><td>{pct_val}</td>"
-                        f"<td>{int(r['total_volume'])}</td><td>{r['avg_client_per_period']:.2f}</td><td>{reg_val}</td></tr>"
+                        f"<td>{int(r['total_volume'])}</td><td>{r['pct_volume_fmt']}</td><td>{r['avg_client_per_period']:.2f}</td>"
+                        f"<td>{line1}</td><td>{line2}</td></tr>"
                     )
                 thead = (
                     f"<thead><tr>"
                     f"<th>{col_cluster}</th>"
-                    f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_avg_client}</th><th>{col_regularity}</th>"
+                    f"<th>Клиентов</th><th>% клиентов</th><th>{col_volume}</th><th>{col_pct_volume}</th><th>{col_avg_client}</th>"
+                    f"<th>{col_presence}</th><th>{col_regularity_2}</th>"
                     f"</tr></thead>"
                 )
                 tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
@@ -1139,12 +1163,19 @@ if uploaded_file_1 and uploaded_file_2:
                         'font-size: 0.8rem; box-shadow: 0 2px 2px rgba(0,0,0,0.2); white-space: nowrap; }} '
                         '.cluster-table td {{ padding: 5px 8px; border-bottom: 1px solid #eee; background: #fff; vertical-align: top; }} '
                         '.cluster-table td:nth-child(1) {{ font-weight: 500; }} '
-                        '.cluster-table-wrap .cluster-tt-icon {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; '
-                        'border-radius: 50%; background: #6c757d; color: #fff; font-size: 0.7rem; font-weight: bold; cursor: help; margin-right: 4px; }} '
+                        '.cluster-details-wrap summary {{ list-style: none; cursor: pointer; }} '
+                        '.cluster-details-wrap summary::-webkit-details-marker {{ display: none; }} '
+                        '.cluster-arrow {{ display: inline-block; margin-right: 4px; font-size: 0.65rem; color: #6c757d; transition: transform 0.15s; }} '
+                        '.cluster-details-wrap[open] .cluster-arrow {{ transform: rotate(90deg); }} '
+                        '.cluster-details {{ margin-top: 6px; padding: 8px; background: #f8f9fa; border-radius: 6px; '
+                        'border-left: 3px solid #6c757d; font-size: 0.75rem; text-align: left; }} '
+                        '.cluster-detail-block {{ margin-bottom: 4px; }} '
+                        '.cluster-detail-block:last-child {{ margin-bottom: 0; }} '
+                        '.cluster-detail-block strong {{ color: #495057; }} '
                         '.cluster-table tbody tr:hover td {{ background-color: #f8f9fa; }} '
                         '.cluster-table tbody tr:first-child td {{ background: #e85d04 !important; color: #fff !important; font-weight: bold; }} '
                         '.cluster-table tbody tr:first-child:hover td {{ background: #e85d04 !important; }} '
-                        '.cluster-table tbody tr:first-child .cluster-tt-icon {{ background: rgba(255,255,255,0.5); }} '
+                        '.cluster-table tbody tr:first-child .cluster-arrow {{ color: rgba(255,255,255,0.9); }} '
                         '</style>',
                         unsafe_allow_html=True,
                     )
