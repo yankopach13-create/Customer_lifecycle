@@ -157,21 +157,21 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
     <div style="width: 100%; margin: 0.75rem 0 0 0;">
         <button id="excel_btn_{safe_key}" type="button" style="
             width: 100%;
-            height: 2.25rem;
-            min-height: 2.25rem;
-            padding: 6px 12px;
-            background: #e9d5ff;
-            color: #5b21b6;
+            height: 2.75rem;
+            min-height: 2.75rem;
+            padding: 8px 12px;
+            background: transparent;
+            color: white;
             font-weight: 700;
             font-size: 0.85rem;
-            border: 2px solid #c4b5fd;
+            border: 2px solid white;
             border-radius: 6px;
             cursor: pointer;
             text-align: center;
             line-height: 1.2;
             box-sizing: border-box;
-            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-        " onmouseover="this.style.background='#ddd6fe'; this.style.borderColor='#a78bfa'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)';" onmouseout="this.style.background='#e9d5ff'; this.style.borderColor='#c4b5fd'; this.style.boxShadow='none';">
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        " onmouseover="this.style.opacity='0.9'; this.style.boxShadow='0 0 0 1px rgba(255,255,255,0.3)';" onmouseout="this.style.opacity='1'; this.style.boxShadow='none';">
             {button_label}
         </button>
     </div>
@@ -192,7 +192,7 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
         }})();
     </script>
     """
-    components.html(html, height=48)
+    components.html(html, height=56)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
