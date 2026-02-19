@@ -504,46 +504,13 @@ if uploaded_file_1 and uploaded_file_2:
         cohort_labels = [lb for _, lb in cohort_options]
         cohort_ranks = {lb: r for r, lb in cohort_options}
 
-        # Верхняя строка: слева — выбор когорты и категорий, справа — таблица данных
-        col_filters, col_table = st.columns([1, 3])
-        with col_filters:
-            st.caption("Выберите когорту клиентов и анализируемый продукт")
-            selected_cohort_label = st.selectbox(
-                "Когорта",
-                options=cohort_labels,
-                key="cohort_select",
-                label_visibility="collapsed",
-            )
-            # Шире только чипы с выбранными категориями, не сам выпадающий список
-            st.markdown(
-                """<style>
-                span[data-baseweb="tag"] { min-width: 180px; max-width: 420px; }
-                </style>""",
-                unsafe_allow_html=True,
-            )
-            selected_categories = st.multiselect(
-                "Категории",
-                options=all_categories,
-                default=categories_from_doc1,
-                key="category_select",
-                label_visibility="collapsed",
-            )
-
-        # Когорта = клиенты из документа 1, купившие на выбранной неделе (в документе 1)
-        cohort_rank = cohort_ranks[selected_cohort_label]
-        pm, ps = rank_to_period.loc[cohort_rank, COL_PERIOD_MAIN], rank_to_period.loc[cohort_rank, COL_PERIOD_SUB]
-        pm, ps = str(pm).strip(), str(ps).strip()
-        cohort_clients = set(
-            df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT].tolist()
-        )
-        # Нормализуем типы периода к строке (как в period_order), чтобы merge не падал по dtype
+        # Подготовка данных с period_rank для блоков ниже (кластеры, цикл жизни, продажи)
         df1_norm = df1.copy()
         df1_norm[COL_PERIOD_MAIN] = df1_norm[COL_PERIOD_MAIN].astype(str).str.strip()
         df1_norm[COL_PERIOD_SUB] = df1_norm[COL_PERIOD_SUB].astype(str).str.strip()
         df2_norm = df2.copy()
         df2_norm[COL_PERIOD_MAIN] = df2_norm[COL_PERIOD_MAIN].astype(str).str.strip()
         df2_norm[COL_PERIOD_SUB] = df2_norm[COL_PERIOD_SUB].astype(str).str.strip()
-        # Документ 1: период для сопоставления с period_order (добавляем period_rank и period_label_short)
         df1_with_period = df1_norm.merge(
             period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
             on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
@@ -556,161 +523,8 @@ if uploaded_file_1 and uploaded_file_2:
             how="left",
         )
         df2_with_period["period_label_short"] = df2_with_period["period_rank"].map(period_rank_to_short)
-        # Данные по анализируемой категории — из документа 1; по другим категориям — из документа 2
-        selected_in_doc1 = [c for c in selected_categories if c in categories_from_doc1_set]
-        selected_in_doc2 = [c for c in selected_categories if c in set(categories_from_doc2)]
-        # Коды клиентов в документе 2 приводим к тому же виду, что в когорте (для надёжного сопоставления)
         df2_with_period["_client_norm"] = _norm_client_id(df2_with_period[COL_CLIENT])
         df1_with_period["_client_norm"] = _norm_client_id(df1_with_period[COL_CLIENT])
-        parts = []
-        if selected_in_doc1:
-            parts.append(
-                df1_with_period[
-                    df1_with_period["_client_norm"].isin(cohort_clients)
-                    & df1_with_period[COL_CATEGORY].isin(selected_in_doc1)
-                ].copy()
-            )
-        if selected_in_doc2:
-            parts.append(
-                df2_with_period[
-                    df2_with_period["_client_norm"].isin(cohort_clients)
-                    & df2_with_period[COL_CATEGORY].isin(selected_in_doc2)
-                ].copy()
-            )
-        if parts:
-            df_plot = pd.concat(parts, ignore_index=True)
-            stack_col = COL_CATEGORY
-        else:
-            # Ничего не выбрано — показываем активность когорты только по документу 1
-            df_plot = df1_with_period[df1_with_period["_client_norm"].isin(cohort_clients)].copy()
-            df_plot["_total"] = "Активные клиенты"
-            stack_col = "_total"
-        df_plot = df_plot.drop(columns=["_client_norm"], errors="ignore")
-
-        x_col_short = "period_label_short"
-
-        # Верхний график: количество клиентов по периодам (стек по категориям или всего)
-        if stack_col == COL_CATEGORY:
-            clients_by_period = (
-                df_plot.groupby([x_col_short, stack_col])[COL_CLIENT]
-                .nunique()
-                .reset_index()
-                .rename(columns={COL_CLIENT: "clients_count"})
-            )
-        else:
-            clients_by_period = (
-                df_plot.groupby(x_col_short)[COL_CLIENT]
-                .nunique()
-                .reset_index()
-                .rename(columns={COL_CLIENT: "clients_count"})
-            )
-            clients_by_period[stack_col] = "Активные клиенты"
-
-        # Нижний график: данные по количеству товара (те же фильтры)
-        if stack_col == COL_CATEGORY:
-            qty_by_period = (
-                df_plot.groupby([x_col_short, stack_col])[COL_QUANTITY]
-                .sum()
-                .reset_index()
-            )
-        else:
-            qty_by_period = (
-                df_plot.groupby(x_col_short)[COL_QUANTITY]
-                .sum()
-                .reset_index()
-            )
-            qty_by_period[stack_col] = "Товар"
-
-        # Две таблицы: левая — клиенты, правая — товар (1-я строка итого, далее разрез по категориям)
-        clients_total = (
-            df_plot.groupby(x_col_short)[COL_CLIENT]
-            .nunique()
-            .reindex(period_labels_short)
-            .fillna(0)
-            .astype(int)
-        )
-        qty_total = (
-            df_plot.groupby(x_col_short)[COL_QUANTITY]
-            .sum()
-            .reindex(period_labels_short)
-            .fillna(0)
-            .astype(int)
-        )
-        # Строки = категории, столбцы = недели (периоды)
-        clients_by_cat = (
-            df_plot.groupby([stack_col, x_col_short])[COL_CLIENT]
-            .nunique()
-            .unstack(fill_value=0)
-            .reindex(columns=period_labels_short)
-            .fillna(0)
-            .astype(int)
-        )
-        qty_by_cat = (
-            df_plot.groupby([stack_col, x_col_short])[COL_QUANTITY]
-            .sum()
-            .unstack(fill_value=0)
-            .reindex(columns=period_labels_short)
-            .fillna(0)
-            .astype(int)
-        )
-        rows_clients = ["Итого клиентов когорты"] + clients_by_cat.index.tolist()
-        table_clients = pd.DataFrame(
-            [clients_total.values] + [clients_by_cat.loc[c].values for c in clients_by_cat.index],
-            index=rows_clients,
-            columns=period_labels_short,
-        )
-        rows_qty = ["Итого товаров"] + qty_by_cat.index.tolist()
-        table_qty = pd.DataFrame(
-            [qty_total.values] + [qty_by_cat.loc[c].values for c in qty_by_cat.index],
-            index=rows_qty,
-            columns=period_labels_short,
-        )
-        with col_table:
-            col_tbl_left, col_tbl_right = st.columns(2)
-            with col_tbl_left:
-                st.caption("Количество клиентов")
-                st.dataframe(table_clients, use_container_width=True, height="content")
-            with col_tbl_right:
-                st.caption("Количество товара")
-                st.dataframe(table_qty, use_container_width=True, height="content")
-            # Синхронный горизонтальный скролл двух таблиц (без объединения)
-            st.markdown(
-                """
-                <script>
-                (function() {
-                    function findScrollable(el) {
-                        if (!el) return null;
-                        var s = getComputedStyle(el);
-                        if ((s.overflowX === 'auto' || s.overflowX === 'scroll' || s.overflow === 'auto') && el.scrollWidth > el.clientWidth) return el;
-                        for (var c = el.firstElementChild; c; c = c.nextElementSibling) {
-                            var r = findScrollable(c);
-                            if (r) return r;
-                        }
-                        return null;
-                    }
-                    function run() {
-                        var cols = document.querySelectorAll('[data-testid="column"]');
-                        var pair = [];
-                        cols.forEach(function(col) {
-                            var frame = col.querySelector('[data-testid="stDataFrame"]');
-                            if (frame) pair.push(col);
-                        });
-                        if (pair.length >= 2) {
-                            var lastTwo = [pair[pair.length-2], pair[pair.length-1]];
-                            var left = findScrollable(lastTwo[0]);
-                            var right = findScrollable(lastTwo[1]);
-                            if (left && right && !left._synced) {
-                                left._synced = true;
-                                left.addEventListener('scroll', function() { right.scrollLeft = left.scrollLeft; });
-                            }
-                        }
-                    }
-                    setTimeout(run, 1000);
-                })();
-                </script>
-                """,
-                unsafe_allow_html=True,
-            )
 
         # Определение типа периода по данным (недели или месяцы) — используется в кластерах, цикле жизни и блоке продаж
         period_sub_str = period_order[COL_PERIOD_SUB].astype(str).str.lower()
