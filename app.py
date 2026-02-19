@@ -1333,20 +1333,15 @@ if uploaded_file_1 and uploaded_file_2:
                     anchor_esc_lc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     analyzable_esc_lc = analyzed_names_lc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     sales_section_html = (
-                        f'<span class="block-section-title">Продажи на объём якорного (расчёт на 100 ед.)</span>'
-                        f'<p class="block-p"><span class="block-period-caption">{period_range_caption_sales}</span></p>'
+                        f'<span class="block-section-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<p class="block-p">Объём анализируемого товара на единицу якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span>.</p>'
                         f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
                         f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
                         f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
-                        f'<p class="block-p">Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span></p>'
                     )
                 else:
-                    period_range_caption_sales = format_period_range_for_caption(
-                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
-                    )
                     sales_section_html = (
-                        f'<span class="block-section-title">Продажи на объём якорного (расчёт на 100 ед.)</span>'
-                        f'<p class="block-p"><span class="block-period-caption">{period_range_caption_sales}</span></p>'
+                        f'<span class="block-section-title">Продажи анализируемого товара на объём якорного</span>'
                         f'<p class="block-p">В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.</p>'
                     )
 
@@ -1643,7 +1638,10 @@ if uploaded_file_1 and uploaded_file_2:
                     week_mid = t_mid + 1
                     week_end = k_int_lc
                     cohort_short_names = [lb.split(" (")[0] for lb in cohorts_to_use_lc]
-                    cohorts_list_str = ", ".join(cohort_short_names)
+                    if len(cohort_short_names) == 1:
+                        cohorts_list_str = cohort_short_names[0]
+                    else:
+                        cohorts_list_str = f"{cohort_short_names[0]}-{cohort_short_names[-1]}"
                     p1_intro = (
                         f"По выбранным когортам: <span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт (<span class=\"block-product\">{cohorts_list_str}</span>), "
                         f"<span class=\"block-num\">{N_lc}</span> клиентов, первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты."
@@ -1719,7 +1717,8 @@ if uploaded_file_1 and uploaded_file_2:
                     lifecycle_box_html = (
                         "<style>"
                         ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
-                        ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }"
+                        ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; padding-bottom: 0.4rem; margin-bottom: 0; display: block; }"
+                        ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.35); margin: 0.75rem 0; }"
                         ".block-result-box .block-section-title { font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: rgba(255,255,255,0.95); display: block; font-size: 0.95rem; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
@@ -1728,7 +1727,9 @@ if uploaded_file_1 and uploaded_file_2:
                         "</style>"
                         f'<div class="block-result-box">'
                         f'<span class="block-period-caption">{period_range_caption_lc}</span>'
+                        f'<div class="block-divider"></div>'
                         f'{sales_section_html}'
+                        f'<div class="block-divider"></div>'
                         f'<p class="block-p">{p1_intro}</p>'
                         f'<span class="block-section-title">Якорный продукт</span>'
                         f'<p class="block-p">{p1_anchor_body}</p>'
