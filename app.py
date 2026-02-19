@@ -1290,57 +1290,7 @@ if uploaded_file_1 and uploaded_file_2:
                         return False
                     return r0 <= pr < r0 + k_int_lc
 
-                df1_anchor_lc = df1_with_period.copy()
-                df1_anchor_lc["_client_norm"] = _norm_client_id(df1_anchor_lc[COL_CLIENT])
-                df1_anchor_lc = df1_anchor_lc[df1_anchor_lc["_client_norm"].isin(cohort_clients_lc)]
-                df1_anchor_lc["_in_window"] = df1_anchor_lc.apply(_in_window_lc, axis=1)
-                q_anchor_lc = df1_anchor_lc.loc[df1_anchor_lc["_in_window"], COL_QUANTITY].sum()
-
-                selected_in_doc1_lc = [c for c in selected_categories_lifecycle if c in categories_from_doc1_set]
-                selected_in_doc2_lc = [c for c in selected_categories_lifecycle if c in set(categories_from_doc2)]
-                parts_an_lc = []
-                if selected_in_doc1_lc:
-                    d1_lc = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_lc)].copy()
-                    d1_lc["_client_norm"] = _norm_client_id(d1_lc[COL_CLIENT])
-                    d1_lc = d1_lc[d1_lc["_client_norm"].isin(cohort_clients_lc)]
-                    d1_lc["_in_window"] = d1_lc.apply(_in_window_lc, axis=1)
-                    parts_an_lc.append(d1_lc.loc[d1_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
-                if selected_in_doc2_lc:
-                    d2_lc = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_lc)].copy()
-                    d2_lc["_client_norm"] = _norm_client_id(d2_lc[COL_CLIENT])
-                    d2_lc = d2_lc[d2_lc["_client_norm"].isin(cohort_clients_lc)]
-                    d2_lc["_in_window"] = d2_lc.apply(_in_window_lc, axis=1)
-                    parts_an_lc.append(d2_lc.loc[d2_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
-                if parts_an_lc:
-                    df_an_lc = pd.concat(parts_an_lc, ignore_index=True)
-                    q_by_cat_lc = df_an_lc.groupby(COL_CATEGORY)[COL_QUANTITY].sum().reindex(selected_categories_lifecycle).fillna(0).astype(int)
-                else:
-                    q_by_cat_lc = pd.Series(dtype=int)
-                q_analyzed_lc = int(q_by_cat_lc.sum()) if len(q_by_cat_lc) else 0
-
-                if q_anchor_lc and q_anchor_lc > 0:
-                    r_ratio_lc = q_analyzed_lc / q_anchor_lc
-                    expected_int_lc = int(round(n_anchor_lc * r_ratio_lc))
-                    period_range_caption_sales = format_period_range_for_caption(
-                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
-                    )
-                    analyzed_names_lc = (
-                        selected_categories_lifecycle[0]
-                        if len(selected_categories_lifecycle) == 1
-                        else ", ".join(selected_categories_lifecycle)
-                    )
-                    anchor_esc_lc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    analyzable_esc_lc = analyzed_names_lc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    sales_section_html = (
-                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
-                        f'<p class="block-p">Объём анализируемого товара на единицу якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span>.</p>'
-                    )
-                else:
-                    sales_section_html = (
-                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
-                        f'<p class="block-p">В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.</p>'
-                    )
-
+                # Категории и покупки по когорте — нужны для кластеров и для расчёта продаж по кластерам
                 anchor_cats = set(categories_from_doc1)
                 analyzable_list = list(selected_categories_lifecycle)
                 other_cats = set(all_categories) - anchor_cats - set(analyzable_list)
@@ -1363,29 +1313,7 @@ if uploaded_file_1 and uploaded_file_2:
                     .rename(columns={COL_CATEGORY: "categories"})
                 )
 
-                client_weeks = []
-                for c in cohort_clients_lc:
-                    r0 = client_cohort_rank_lc.get(c)
-                    if r0 is None or pd.isna(r0):
-                        continue
-                    r0 = int(r0)
-                    for t in range(k_int_lc):
-                        client_weeks.append({"client_id": c, "t": t, "period_rank": r0 + t})
-                df_cw = pd.DataFrame(client_weeks)
-                df_cw = df_cw.merge(client_period_cats, on=["client_id", "period_rank"], how="left")
-                df_cw["categories"] = df_cw["categories"].apply(_to_set)
-
-                df_cw["bought_anchor"] = df_cw["categories"].apply(lambda s: bool(s & anchor_cats))
-                for i, cat in enumerate(analyzable_list):
-                    df_cw[f"bought_a{i}"] = df_cw["categories"].apply(lambda s, c=cat: c in s)
-                df_cw["bought_other"] = df_cw["categories"].apply(lambda s: bool(s & other_cats))
-                df_cw["no_purchase"] = df_cw["categories"].apply(lambda s: len(s) == 0)
-                if analyzable_list:
-                    df_cw["bought_any_analyzable"] = df_cw[[f"bought_a{i}" for i in range(len(analyzable_list))]].any(axis=1)
-                else:
-                    df_cw["bought_any_analyzable"] = False
-
-                # Кластеры по объёму и регулярности анализируемого в окне K (как в блоке «Кластерный анализ»)
+                # Кластеры по объёму и регулярности анализируемого в окне K
                 per_client_lc = pd.DataFrame({"client_id": sorted(cohort_clients_lc)})
                 per_client_lc["cohort_rank"] = per_client_lc["client_id"].map(client_cohort_rank_lc).astype(float)
                 df_analyzable_lc = df_purchases_lc[df_purchases_lc[COL_CATEGORY].isin(analyzable_list)].copy()
@@ -1447,6 +1375,87 @@ if uploaded_file_1 and uploaded_file_2:
                 else:
                     selected_cluster_set = set(display_to_full_lc.get(s, s) for s in selected_clusters_lifecycle)
                 cohort_clients_filtered = set(per_client_lc[per_client_lc["cluster"].isin(selected_cluster_set)]["client_id"].tolist())
+
+                # Продажи анализируемого на объём якорного — только по выбранным кластерам
+                df1_anchor_lc = df1_with_period.copy()
+                df1_anchor_lc["_client_norm"] = _norm_client_id(df1_anchor_lc[COL_CLIENT])
+                df1_anchor_lc = df1_anchor_lc[df1_anchor_lc["_client_norm"].isin(cohort_clients_filtered)]
+                df1_anchor_lc["_in_window"] = df1_anchor_lc.apply(_in_window_lc, axis=1)
+                q_anchor_lc = df1_anchor_lc.loc[df1_anchor_lc["_in_window"], COL_QUANTITY].sum()
+
+                selected_in_doc1_lc = [c for c in selected_categories_lifecycle if c in categories_from_doc1_set]
+                selected_in_doc2_lc = [c for c in selected_categories_lifecycle if c in set(categories_from_doc2)]
+                parts_an_lc = []
+                if selected_in_doc1_lc:
+                    d1_lc = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_lc)].copy()
+                    d1_lc["_client_norm"] = _norm_client_id(d1_lc[COL_CLIENT])
+                    d1_lc = d1_lc[d1_lc["_client_norm"].isin(cohort_clients_filtered)]
+                    d1_lc["_in_window"] = d1_lc.apply(_in_window_lc, axis=1)
+                    parts_an_lc.append(d1_lc.loc[d1_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
+                if selected_in_doc2_lc:
+                    d2_lc = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_lc)].copy()
+                    d2_lc["_client_norm"] = _norm_client_id(d2_lc[COL_CLIENT])
+                    d2_lc = d2_lc[d2_lc["_client_norm"].isin(cohort_clients_filtered)]
+                    d2_lc["_in_window"] = d2_lc.apply(_in_window_lc, axis=1)
+                    parts_an_lc.append(d2_lc.loc[d2_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
+                if parts_an_lc:
+                    df_an_lc = pd.concat(parts_an_lc, ignore_index=True)
+                    q_by_cat_lc = df_an_lc.groupby(COL_CATEGORY)[COL_QUANTITY].sum().reindex(selected_categories_lifecycle).fillna(0).astype(int)
+                else:
+                    q_by_cat_lc = pd.Series(dtype=int)
+                q_analyzed_lc = int(q_by_cat_lc.sum()) if len(q_by_cat_lc) else 0
+
+                if not cohort_clients_filtered:
+                    sales_section_html = (
+                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<p class="block-p">В выбранных кластерах нет клиентов — коэффициент не рассчитан.</p>'
+                    )
+                elif q_anchor_lc and q_anchor_lc > 0:
+                    r_ratio_lc = q_analyzed_lc / q_anchor_lc
+                    expected_int_lc = int(round(n_anchor_lc * r_ratio_lc))
+                    period_range_caption_sales = format_period_range_for_caption(
+                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
+                    )
+                    analyzed_names_lc = (
+                        selected_categories_lifecycle[0]
+                        if len(selected_categories_lifecycle) == 1
+                        else ", ".join(selected_categories_lifecycle)
+                    )
+                    anchor_esc_lc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    analyzable_esc_lc = analyzed_names_lc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    sales_section_html = (
+                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<p class="block-p">Объём анализируемого товара на единицу якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span>.</p>'
+                    )
+                else:
+                    sales_section_html = (
+                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<p class="block-p">В выбранных кластерах и периоде нет покупок якорного товара — коэффициент не рассчитан.</p>'
+                    )
+
+                # Сетка «клиент × период» и флаги покупок (для таблицы и текста «Цикл жизни»)
+                client_weeks = []
+                for c in cohort_clients_lc:
+                    r0 = client_cohort_rank_lc.get(c)
+                    if r0 is None or pd.isna(r0):
+                        continue
+                    r0 = int(r0)
+                    for t in range(k_int_lc):
+                        client_weeks.append({"client_id": c, "t": t, "period_rank": r0 + t})
+                df_cw = pd.DataFrame(client_weeks)
+                df_cw = df_cw.merge(client_period_cats, on=["client_id", "period_rank"], how="left")
+                df_cw["categories"] = df_cw["categories"].apply(_to_set)
+
+                df_cw["bought_anchor"] = df_cw["categories"].apply(lambda s: bool(s & anchor_cats))
+                for i, cat in enumerate(analyzable_list):
+                    df_cw[f"bought_a{i}"] = df_cw["categories"].apply(lambda s, c=cat: c in s)
+                df_cw["bought_other"] = df_cw["categories"].apply(lambda s: bool(s & other_cats))
+                df_cw["no_purchase"] = df_cw["categories"].apply(lambda s: len(s) == 0)
+                if analyzable_list:
+                    df_cw["bought_any_analyzable"] = df_cw[[f"bought_a{i}" for i in range(len(analyzable_list))]].any(axis=1)
+                else:
+                    df_cw["bought_any_analyzable"] = False
+
                 df_cw = df_cw[df_cw["client_id"].isin(cohort_clients_filtered)]
 
                 N_lc = len(cohort_clients_filtered)
