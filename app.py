@@ -297,6 +297,10 @@ def build_excel_report(
         if cluster_summary is not None and not cluster_summary.empty:
             export_cols = [c for c in ["cluster", "clients", "pct", "total_volume", "pct_volume", "avg_client_per_period", "avg_regularity"] if c in cluster_summary.columns]
             cluster_export = cluster_summary[export_cols].copy()
+            # Названия кластеров в Excel — как в программе (с отображаемым именем без скобок, кроме «Итого»)
+            cluster_export["cluster"] = cluster_export["cluster"].apply(
+                lambda x: "Итого" if x == "Итого" else _cluster_display_name(str(x))
+            )
             # Метрики в % — значением в %
             if "pct" in cluster_export.columns:
                 cluster_export["pct"] = cluster_export["pct"].apply(lambda x: f"{float(x):.1f}%")
@@ -330,13 +334,17 @@ def build_excel_report(
 
         out_start_row = table_start + (len(lifecycle_table) + 2 if lifecycle_table is not None and not lifecycle_table.empty else 0)
 
-        # Примечания на ячейках кластеров (лист 1)
+        # Примечания на ячейках кластеров (лист 1) — в том же порядке, что и строки таблицы (header в start_row, данные с start_row+1)
         ws1 = writer.sheets["Параметры и кластеры"]
-        for i, cluster_name in enumerate(cluster_summary["cluster"].tolist() if cluster_summary is not None and not cluster_summary.empty else []):
-            comment_text = cluster_comments.get(cluster_name)
-            if comment_text:
-                cell = ws1.cell(row=start_row + 1 + i, column=1)
-                cell.comment = Comment(comment_text[:32767], "CLF")
+        if cluster_summary is not None and not cluster_summary.empty:
+            cluster_list_ordered = cluster_summary["cluster"].tolist()
+            for i, cluster_name in enumerate(cluster_list_ordered):
+                comment_text = cluster_comments.get(cluster_name)
+                if comment_text:
+                    # pandas to_excel(startrow=N): заголовок в строке N+1, данные в N+2, N+3, ... (1-based в openpyxl)
+                    data_row_excel = start_row + 2 + i
+                    cell = ws1.cell(row=data_row_excel, column=1)
+                    cell.comment = Comment(comment_text[:32767], "CLF")
 
         # Вывод на листе Цикл жизни — объединённая ячейка с переносом текста
         if lifecycle_output_text:
@@ -695,6 +703,35 @@ if uploaded_file_1 and uploaded_file_2:
             )
             excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
             report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stDownloadButton"] button {
+                    width: 100% !important;
+                    padding: 12px 16px !important;
+                    background: transparent !important;
+                    color: #fff !important;
+                    border: 2px solid #adb5bd !important;
+                    border-radius: 8px !important;
+                    font-size: 0.85rem !important;
+                    font-weight: 700 !important;
+                    min-height: 72px !important;
+                    line-height: 1.3 !important;
+                    text-align: center !important;
+                    white-space: normal !important;
+                    word-wrap: break-word !important;
+                    box-shadow: none !important;
+                    transition: all 0.3s ease !important;
+                }
+                div[data-testid="stDownloadButton"] button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    border-color: #6c757d !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
             st.download_button(
                 "Скачать полный отчёт в Excel",
                 data=excel_data,
