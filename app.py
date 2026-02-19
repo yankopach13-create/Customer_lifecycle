@@ -729,29 +729,16 @@ if uploaded_file_1 and uploaded_file_2:
         # --- Настройка параметров отчёта (применяется ко всем блокам) ---
         st.divider()
         st.subheader("Настройка параметров отчёта")
-        col_report_1, col_report_2, col_report_3 = st.columns([1, 1, 1])
-        with col_report_1:
+        # Первый ряд: С когорты | Анализируемый продукт | Недель/месяцев
+        r1_c1, r1_c2, r1_c3 = st.columns([1, 1, 1])
+        with r1_c1:
             cohort_start_global = st.selectbox(
                 "С когорты",
                 options=cohort_labels,
                 index=0,
                 key="report_cohort_start",
             )
-            cohort_end_global = st.selectbox(
-                "По когорту",
-                options=cohort_labels,
-                index=0,
-                key="report_cohort_end",
-            )
-            excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
-            report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
-            create_excel_download_button(
-                excel_data,
-                report_filename,
-                "Скачать полный отчёт в Excel",
-                "download_full_report",
-            )
-        with col_report_2:
+        with r1_c2:
             selected_categories_global = st.multiselect(
                 "Анализируемый продукт",
                 options=all_categories,
@@ -759,13 +746,33 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_categories",
                 help="Категории для кластеризации, цикла жизни и расчёта продаж на объём якорного.",
             )
-        with col_report_3:
+        with r1_c3:
             k_periods_global = st.number_input(
                 "Недель/месяцев с покупки якорного (включая период когорты)",
                 min_value=1,
                 value=5,
                 step=1,
                 key="report_k_periods",
+            )
+        # Второй ряд: По когорту | пусто | Кнопка (нижняя граница кнопки в одну линию с «По когорту»)
+        r2_c1, r2_c2, r2_c3 = st.columns([1, 1, 1])
+        with r2_c1:
+            cohort_end_global = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="report_cohort_end",
+            )
+        with r2_c2:
+            pass
+        with r2_c3:
+            excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
+            report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
+            create_excel_download_button(
+                excel_data,
+                report_filename,
+                "Скачать полный отчёт в Excel",
+                "download_full_report",
             )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
