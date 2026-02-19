@@ -697,20 +697,10 @@ if uploaded_file_1 and uploaded_file_2:
             selected_categories_global = st.multiselect(
                 "Анализируемый продукт",
                 options=all_categories,
-                default=categories_from_doc1,
+                default=[],
                 key="report_categories",
                 help="Категории для кластеризации, цикла жизни и расчёта продаж на объём якорного.",
             )
-        with col_report_3:
-            k_periods_global = st.number_input(
-                "Недель/месяцев с покупки якорного (включая период когорты)",
-                min_value=1,
-                value=5,
-                step=1,
-                key="report_k_periods",
-            )
-            excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
-            report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
             st.markdown(
                 """
                 <style>
@@ -737,12 +727,22 @@ if uploaded_file_1 and uploaded_file_2:
                 """,
                 unsafe_allow_html=True,
             )
+            excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
+            report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
             st.download_button(
                 "Скачать полный отчёт в Excel",
                 data=excel_data,
                 file_name=report_filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_full_report",
+            )
+        with col_report_3:
+            k_periods_global = st.number_input(
+                "Недель/месяцев с покупки якорного (включая период когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="report_k_periods",
             )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
@@ -1019,6 +1019,7 @@ if uploaded_file_1 and uploaded_file_2:
 
                 cluster_names_list = summary["cluster"].tolist()
                 cluster_options = [c for c in cluster_names_list if c != "Итого"]
+                cluster_options_display = [_cluster_display_name(n) for n in cluster_options]
                 cluster_display_to_full = {_cluster_display_name(n): n for n in cluster_names_list}
                 cluster_full_to_display = {n: _cluster_display_name(n) for n in cluster_names_list}
 
@@ -1153,12 +1154,13 @@ if uploaded_file_1 and uploaded_file_2:
                 with col_clusters_sel:
                     selected_clusters_for_copy = st.multiselect(
                         "Выбор кластеров для копирования кодов клиента",
-                        options=cluster_options,
+                        options=cluster_options_display,
                         default=[],
                         key="cluster_copy_multiselect",
                     )
                 with col_copy_btn:
-                    ids_for_copy = per_client[per_client["cluster"].isin(selected_clusters_for_copy)]["client_id"].tolist()
+                    selected_full_names = [cluster_display_to_full[s] for s in selected_clusters_for_copy if s in cluster_display_to_full]
+                    ids_for_copy = per_client[per_client["cluster"].isin(selected_full_names)]["client_id"].tolist()
                     copy_data_str = "\n".join(str(c) for c in ids_for_copy)
                     n_copy = len(ids_for_copy)
                     copy_label = f"📋 Копировать коды ({n_copy})" if n_copy else "📋 Копировать коды (0)"
