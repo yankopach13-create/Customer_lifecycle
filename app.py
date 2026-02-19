@@ -204,20 +204,25 @@ def _norm_client_id(ser: pd.Series) -> pd.Series:
     return s.str.replace(r"\.0$", "", regex=True)
 
 
-def load_and_normalize(uploaded_file):
-    """Читает Excel и приводит к стандартным столбцам: category, period_main, period_sub, quantity, client_id."""
-    if uploaded_file is None:
-        return None
-    raw = pd.read_excel(uploaded_file, header=0)
-    # Берём первые 5 столбцов по позиции
+@st.cache_data(ttl=3600)
+def _load_from_bytes(_file_bytes: bytes, _filename: str) -> pd.DataFrame:
+    """Внутренняя загрузка из байтов (кэшируется по содержимому файла)."""
+    raw = pd.read_excel(io.BytesIO(_file_bytes), header=0)
     cols = raw.iloc[:, :5].copy()
     cols.columns = [COL_CATEGORY, COL_PERIOD_MAIN, COL_PERIOD_SUB, COL_QUANTITY, COL_CLIENT]
-    # Убираем строки с пустыми ключевыми полями
     cols = cols.dropna(subset=[COL_PERIOD_MAIN, COL_CLIENT])
     cols[COL_QUANTITY] = pd.to_numeric(cols[COL_QUANTITY], errors="coerce").fillna(0).astype(int)
     cols[COL_CATEGORY] = cols[COL_CATEGORY].astype(str).str.strip()
     cols[COL_CLIENT] = _norm_client_id(cols[COL_CLIENT])
     return cols
+
+
+def load_and_normalize(uploaded_file):
+    """Читает Excel и приводит к стандартным столбцам: category, period_main, period_sub, quantity, client_id."""
+    if uploaded_file is None:
+        return None
+    file_bytes = uploaded_file.getvalue()
+    return _load_from_bytes(file_bytes, uploaded_file.name)
 
 
 def merge_and_prepare(df1, df2):
@@ -712,13 +717,17 @@ if uploaded_file_1 and uploaded_file_2:
         categories_from_doc1_set = set(categories_from_doc1)
         # В списке категорий: сначала из документа 1 (анализируемая), потом из документа 2 (другие)
         all_categories = categories_from_doc1 + [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
-        # Когорты с подписью вида "2025/01 (N клиентов)"
+        # Когорты с подписью вида "2025/01 (N клиентов)" — один проход groupby вместо фильтра по каждому периоду
+        df1_strip = df1.copy()
+        df1_strip[COL_PERIOD_MAIN] = df1_strip[COL_PERIOD_MAIN].astype(str).str.strip()
+        df1_strip[COL_PERIOD_SUB] = df1_strip[COL_PERIOD_SUB].astype(str).str.strip()
+        n_clients_by_period = df1_strip.groupby([COL_PERIOD_MAIN, COL_PERIOD_SUB])[COL_CLIENT].nunique()
         cohort_options = []
         for r in sorted(rank_to_period.index):
             row = rank_to_period.loc[r]
             pm, ps = str(row[COL_PERIOD_MAIN]).strip(), str(row[COL_PERIOD_SUB]).strip()
             short = period_labels_short[r] if r < len(period_labels_short) else f"{pm} {ps}"
-            n_clients = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT].nunique()
+            n_clients = n_clients_by_period.get((pm, ps), 0) if (pm, ps) in n_clients_by_period.index else 0
             label = f"{short} ({n_clients} клиентов)"
             cohort_options.append((r, label))
         cohort_labels = [lb for _, lb in cohort_options]
@@ -1322,15 +1331,9 @@ if uploaded_file_1 and uploaded_file_2:
                     ]
                     st.warning(f"Увеличьте период данных или уменьшите кол-во недель/месяцев с покупки якорного продукта для корректного расчёта когорт ({', '.join(short_labels_lc)})")
 
-                def _in_window_lc(row):
-                    c = row.get("_client_norm")
-                    r0 = client_cohort_rank_dict_lc.get(c)
-                    if r0 is None or pd.isna(r0):
-                        return False
-                    pr = row.get("period_rank")
-                    if pd.isna(pr):
-                        return False
-                    return r0 <= pr < r0 + k_int_lc
+                def _in_window_vectorized(df):
+                    r0 = df["_client_norm"].map(client_cohort_rank_dict_lc)
+                    return r0.notna() & df["period_rank"].notna() & (df["period_rank"] >= r0) & (df["period_rank"] < r0 + k_int_lc)
 
                 # Категории и покупки по когорте — нужны для кластеров и для расчёта продаж по кластерам
                 anchor_cats = set(categories_from_doc1)
@@ -1426,7 +1429,7 @@ if uploaded_file_1 and uploaded_file_2:
                 df1_anchor_lc = df1_with_period.copy()
                 df1_anchor_lc["_client_norm"] = _norm_client_id(df1_anchor_lc[COL_CLIENT])
                 df1_anchor_lc = df1_anchor_lc[df1_anchor_lc["_client_norm"].isin(cohort_clients_filtered)]
-                df1_anchor_lc["_in_window"] = df1_anchor_lc.apply(_in_window_lc, axis=1)
+                df1_anchor_lc["_in_window"] = _in_window_vectorized(df1_anchor_lc)
                 q_anchor_lc = df1_anchor_lc.loc[df1_anchor_lc["_in_window"], COL_QUANTITY].sum()
 
                 selected_in_doc1_lc = [c for c in selected_categories_lifecycle if c in categories_from_doc1_set]
@@ -1436,13 +1439,13 @@ if uploaded_file_1 and uploaded_file_2:
                     d1_lc = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_lc)].copy()
                     d1_lc["_client_norm"] = _norm_client_id(d1_lc[COL_CLIENT])
                     d1_lc = d1_lc[d1_lc["_client_norm"].isin(cohort_clients_filtered)]
-                    d1_lc["_in_window"] = d1_lc.apply(_in_window_lc, axis=1)
+                    d1_lc["_in_window"] = _in_window_vectorized(d1_lc)
                     parts_an_lc.append(d1_lc.loc[d1_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
                 if selected_in_doc2_lc:
                     d2_lc = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_lc)].copy()
                     d2_lc["_client_norm"] = _norm_client_id(d2_lc[COL_CLIENT])
                     d2_lc = d2_lc[d2_lc["_client_norm"].isin(cohort_clients_filtered)]
-                    d2_lc["_in_window"] = d2_lc.apply(_in_window_lc, axis=1)
+                    d2_lc["_in_window"] = _in_window_vectorized(d2_lc)
                     parts_an_lc.append(d2_lc.loc[d2_lc["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
                 if parts_an_lc:
                     df_an_lc = pd.concat(parts_an_lc, ignore_index=True)
@@ -1532,8 +1535,8 @@ if uploaded_file_1 and uploaded_file_2:
                     median_consecutive_weeks = consec["consecutive_weeks"].median() if len(consec) else 0.0
 
                     gap_lengths = []
-                    for cid in df_cw["client_id"].unique():
-                        seq = df_cw[df_cw["client_id"] == cid].set_index("t").reindex(range(k_int_lc)).fillna(False)["bought_any_analyzable"].tolist()
+                    for cid, grp in df_cw.groupby("client_id", sort=False):
+                        seq = grp.set_index("t").reindex(range(k_int_lc)).fillna(False)["bought_any_analyzable"].tolist()
                         i = 0
                         while i < k_int_lc:
                             if not seq[i]:
@@ -1549,8 +1552,8 @@ if uploaded_file_1 and uploaded_file_2:
                     first_sustained_start = {}
                     first_sustained_other = {}
                     first_sustained_none = {}
-                    for cid in df_cw["client_id"].unique():
-                        rows = df_cw[df_cw["client_id"] == cid].sort_values("t")
+                    for cid, grp in df_cw.groupby("client_id", sort=False):
+                        rows = grp.sort_values("t")
                         seq = rows.set_index("t").reindex(range(k_int_lc)).fillna(False)["bought_any_analyzable"].tolist()
                         i = 0
                         found = None
@@ -1568,7 +1571,7 @@ if uploaded_file_1 and uploaded_file_2:
                         if found is not None:
                             t_start, gap_len = found
                             first_sustained_start[cid] = t_start
-                            window = df_cw[(df_cw["client_id"] == cid) & (df_cw["t"] >= t_start) & (df_cw["t"] < t_start + gap_len)]
+                            window = rows[(rows["t"] >= t_start) & (rows["t"] < t_start + gap_len)]
                             first_sustained_other[cid] = window["bought_other"].any()
                             first_sustained_none[cid] = window["no_purchase"].any()
                     n_sustained = len(first_sustained_start)
@@ -1600,17 +1603,17 @@ if uploaded_file_1 and uploaded_file_2:
                     df_last_week = df_cw[df_cw["t"] == k_int_lc - 1]
                     df_last_n = df_cw[df_cw["t"] >= k_int_lc - n_last_weeks]
                     other_cat_count = {}
-                    for _, r in df_last_week.iterrows():
-                        for c in (r["categories"] & other_cats):
+                    for r in df_last_week.itertuples(index=False):
+                        for c in (r.categories & other_cats):
                             other_cat_count[c] = other_cat_count.get(c, 0) + 1
                     most_popular_other = max(other_cat_count, key=other_cat_count.get) if other_cat_count else None
                     pct_most_popular_other = 100 * other_cat_count.get(most_popular_other, 0) / N_lc if most_popular_other else 0.0
 
                     client_other_cats_n = {}
-                    for _, r in df_last_n.iterrows():
-                        if r["bought_other"] and r["categories"] & other_cats:
-                            for c in (r["categories"] & other_cats):
-                                client_other_cats_n.setdefault(r["client_id"], set()).add(c)
+                    for r in df_last_n.itertuples(index=False):
+                        if r.bought_other and (r.categories & other_cats):
+                            for c in (r.categories & other_cats):
+                                client_other_cats_n.setdefault(r.client_id, set()).add(c)
                     other_clients_count_n = {}
                     for cid, cats in client_other_cats_n.items():
                         for c in cats:
