@@ -740,15 +740,24 @@ if uploaded_file_1 and uploaded_file_2:
             """,
             unsafe_allow_html=True,
         )
-        # Первый ряд: С когорты | Анализируемый продукт | Недель/месяцев
-        r1_c1, r1_c2, r1_c3 = st.columns([1, 1, 1])
+        # Первый ряд: [С когорты | По когорту] | Анализируемый продукт (уже) | Недель/месяцев
+        r1_c1, r1_c2, r1_c3 = st.columns([1.2, 0.7, 1])
         with r1_c1:
-            cohort_start_global = st.selectbox(
-                "С когорты по когорту",
-                options=cohort_labels,
-                index=0,
-                key="report_cohort_start",
-            )
+            sub_left, sub_right = st.columns(2)
+            with sub_left:
+                cohort_start_global = st.selectbox(
+                    "С когорты",
+                    options=cohort_labels,
+                    index=0,
+                    key="report_cohort_start",
+                )
+            with sub_right:
+                cohort_end_global = st.selectbox(
+                    "По когорту",
+                    options=cohort_labels,
+                    index=0,
+                    key="report_cohort_end",
+                )
         with r1_c2:
             selected_categories_global = st.multiselect(
                 "Анализируемый продукт",
@@ -765,15 +774,10 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="report_k_periods",
             )
-        # Второй ряд: По когорту | пусто | Кнопка (нижняя граница кнопки в одну линию с «По когорту»)
-        r2_c1, r2_c2, r2_c3 = st.columns([1, 1, 1])
+        # Второй ряд: пусто | пусто | Кнопка
+        r2_c1, r2_c2, r2_c3 = st.columns([1.2, 0.7, 1])
         with r2_c1:
-            cohort_end_global = st.selectbox(
-                "",
-                options=cohort_labels,
-                index=0,
-                key="report_cohort_end",
-            )
+            pass
         with r2_c2:
             pass
         with r2_c3:
