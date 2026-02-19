@@ -203,14 +203,13 @@ def _lifecycle_cluster_selector_html(
     all_only: bool,
     selected_list: list,
 ) -> str:
-    """Строит HTML с чекбоксами-ссылками в стиле Streamlit: квадрат + подпись."""
-    # Стиль как у st.checkbox: маленький квадрат, подпись справа, цвет/шрифт под тему
+    """Строит HTML с чекбоксами: клик через JS перезагружает страницу с query params (работает из iframe)."""
     items_html = []
     for opt in options:
         is_all = opt == "Все кластеры"
         checked = all_only if is_all else (opt in selected_list)
         if is_all:
-            href = "?lifecycle_all=1"
+            param = "lifecycle_all=1"
         else:
             if all_only:
                 new_list = [opt]
@@ -219,7 +218,9 @@ def _lifecycle_cluster_selector_html(
                     new_list = [s for s in selected_list if s != opt]
                 else:
                     new_list = selected_list + [opt]
-            href = "?lifecycle_clusters=" + quote(",".join(new_list))
+            param = "lifecycle_clusters=" + quote(",".join(new_list))
+        # Атрибут для JS: переходим в основном окне, иначе iframe блокирует переход
+        param_esc = param.replace("&", "&amp;").replace('"', "&quot;")
         opt_esc = opt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
         box_style = (
             "width:16px;height:16px;min-width:16px;min-height:16px;border-radius:4px;"
@@ -229,17 +230,25 @@ def _lifecycle_cluster_selector_html(
         )
         check_mark = '<span style="color:white;font-size:12px;">✓</span>' if checked else ""
         items_html.append(
-            f'<a href="{href}" target="_top" style="display:inline-flex;align-items:center;gap:8px;'
-            f'text-decoration:none;color:rgba(250,250,250,0.95);font-size:0.9rem;'
-            f'white-space:nowrap;margin-right:16px;padding:2px 0;cursor:pointer;">'
+            f'<span class="lc-cluster-opt" data-param="{param_esc}" style="display:inline-flex;align-items:center;gap:8px;'
+            f'white-space:nowrap;margin-right:16px;padding:4px 0;cursor:pointer;'
+            f'color:rgba(250,250,250,0.95);font-size:0.9rem;">'
             f'<span style="{box_style}">{check_mark}</span>'
-            f'<span>{opt_esc}</span></a>'
+            f'<span>{opt_esc}</span></span>'
         )
     return (
         '<div style="display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;padding-bottom:16px;'
         'font-family:Source Sans Pro, sans-serif;">'
         + "".join(items_html)
-        + "</div>"
+        + "<script>(function(){"
+        "var base = window.top.location.pathname || '/';"
+        "document.querySelectorAll('.lc-cluster-opt').forEach(function(el){"
+        "el.addEventListener('click', function(){"
+        "var p = this.getAttribute('data-param');"
+        "if(p) window.top.location = base + '?' + p;"
+        "});"
+        "});"
+        "})();</script></div>"
     )
 
 
