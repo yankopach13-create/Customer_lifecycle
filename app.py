@@ -1242,7 +1242,11 @@ if uploaded_file_1 and uploaded_file_2:
                     checked = st.checkbox(opt, value=False, key=key_other)
                 if checked:
                     selected_clusters_lifecycle.append(opt)
-        st.session_state["lifecycle_all_only"] = "Все кластеры" in selected_clusters_lifecycle
+        # Взаимоисключение: только «Все кластеры» → галочка «Все кластеры»; выбран любой другой — снимаем «Все кластеры»
+        if selected_clusters_lifecycle == ["Все кластеры"]:
+            st.session_state["lifecycle_all_only"] = True
+        else:
+            st.session_state["lifecycle_all_only"] = False
 
         if not cohorts_to_use_lc:
             st.caption("Выберите хотя бы одну когорту.")
