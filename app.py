@@ -1277,8 +1277,9 @@ if uploaded_file_1 and uploaded_file_2:
                 client_cohort_rank_lc = df1_cr_lc.groupby("_client_norm")["period_rank"].min()
 
                 k_int_lc = int(k_periods_lifecycle)
-                # Расчёт «продажи на объём якорного» на 100 ед. (те же когорты и период) — вставляется в вывод цикла жизни
-                n_anchor_lc = 100
+                if "lifecycle_anchor_units" not in st.session_state:
+                    st.session_state["lifecycle_anchor_units"] = 100
+                n_anchor_lc = st.session_state["lifecycle_anchor_units"]
                 client_cohort_rank_dict_lc = client_cohort_rank_lc.to_dict()
 
                 def _in_window_lc(row):
@@ -1335,9 +1336,6 @@ if uploaded_file_1 and uploaded_file_2:
                     sales_section_html = (
                         f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
                         f'<p class="block-p">Объём анализируемого товара на единицу якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span>.</p>'
-                        f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
-                        f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
-                        f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
                     )
                 else:
                     sales_section_html = (
@@ -1721,7 +1719,7 @@ if uploaded_file_1 and uploaded_file_2:
                             p4_parts.append(". ")
                     p4_html = "".join(p4_parts) if p4_parts else ""
 
-                    lifecycle_box_html = (
+                    lifecycle_box_css = (
                         "<style>"
                         ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
                         ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; padding-bottom: 0.4rem; margin-bottom: 0; display: block; }"
@@ -1734,31 +1732,64 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
-                        f'<div class="block-result-box">'
-                        f'<span class="block-period-caption">{header_first_line}</span>'
-                        f'<div class="block-divider"></div>'
-                        f'{sales_section_html}'
+                    )
+                    lifecycle_box_part1 = (
+                        lifecycle_box_css
+                        + f'<div class="block-result-box">'
+                        + f'<span class="block-period-caption">{header_first_line}</span>'
+                        + f'<div class="block-divider"></div>'
+                        + sales_section_html
+                    )
+                    lifecycle_box_part2 = (
                         f'<div class="block-divider"></div>'
                         f'<span class="block-block-title">Цикл жизни клиента</span>'
                         f'<span class="block-section-title">Якорный продукт</span>'
                         f'<p class="block-p">{p1_anchor_body}</p>'
                     )
                     if p2_analyzable_html:
-                        lifecycle_box_html += f'<span class="block-section-title">Анализируемый продукт</span><p class="block-p">{p2_analyzable_html}</p>'
-                    lifecycle_box_html += (
+                        lifecycle_box_part2 += f'<span class="block-section-title">Анализируемый продукт</span><p class="block-p">{p2_analyzable_html}</p>'
+                    lifecycle_box_part2 += (
                         f'<span class="block-section-title">Исходы к концу периода ({end_period_weeks_str})</span>'
                         f'<p class="block-p">{p2_outcomes_html}</p>'
                     )
                     if p2_other_popular_html:
-                        lifecycle_box_html += f'<span class="block-section-title">Среди прочих категорий</span><p class="block-p">{p2_other_popular_html}</p>'
-                    lifecycle_box_html += (
+                        lifecycle_box_part2 += f'<span class="block-section-title">Среди прочих категорий</span><p class="block-p">{p2_other_popular_html}</p>'
+                    lifecycle_box_part2 += (
                         f'<span class="block-section-title">Полураспад анализируемого продукта</span>'
                         f'<p class="block-p">{p3_html}</p>'
                     )
                     if p4_html:
-                        lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
-                    lifecycle_box_html += "</div>"
-                    st.markdown(lifecycle_box_html, unsafe_allow_html=True)
+                        lifecycle_box_part2 += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
+                    lifecycle_box_part2 += "</div>"
+
+                    st.markdown(lifecycle_box_part1, unsafe_allow_html=True)
+                    if q_anchor_lc and q_anchor_lc > 0:
+                        col_s1, col_s2, col_s3 = st.columns([1.8, 0.5, 3])
+                        with col_s1:
+                            st.markdown("При продаже ")
+                        with col_s2:
+                            st.number_input(
+                                "ед.",
+                                min_value=1,
+                                value=n_anchor_lc,
+                                key="lifecycle_anchor_units",
+                                label_visibility="collapsed",
+                            )
+                        with col_s3:
+                            st.markdown(
+                                f" ед. {category_label} в течении {k_periods_lifecycle} {period_word} будет продано "
+                                f"**{expected_int_lc}** ед. {', '.join(selected_categories_lifecycle)}."
+                            )
+                    st.markdown(lifecycle_box_part2, unsafe_allow_html=True)
+
+                    lifecycle_box_html = lifecycle_box_part1
+                    if q_anchor_lc and q_anchor_lc > 0:
+                        lifecycle_box_html += (
+                            f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
+                            f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
+                        )
+                    lifecycle_box_html += lifecycle_box_part2
 
                     # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
