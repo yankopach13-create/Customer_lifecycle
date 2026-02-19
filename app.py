@@ -3,6 +3,7 @@
 Streamlit-приложение для загрузки отчётов из Qlik по шаблону.
 """
 
+import io
 import json
 import re
 import streamlit as st
@@ -235,6 +236,91 @@ def format_period_range_for_caption(cohorts_to_use, cohort_ranks, rank_to_period
     week_f = w_f.group(0) if w_f else ps_f
     week_l = w_l.group(0) if w_l else ps_l
     return f"По данным за {week_f}-{week_l} недель {year}"
+
+
+def _html_to_plain_text(html: str) -> str:
+    """Убирает HTML-теги и лишние пробелы, оставляет читаемый текст."""
+    if not html:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def build_excel_report(
+    cohort_start: str,
+    cohort_end: str,
+    categories: list,
+    k_periods: int,
+    is_months: bool,
+    cluster_summary: pd.DataFrame,
+    lifecycle_clusters: list,
+    lifecycle_table: pd.DataFrame,
+    lifecycle_output_text: str,
+) -> bytes:
+    """
+    Собирает полный отчёт в Excel: лист 1 — параметры и кластерный анализ, лист 2 — цикл жизни (кластеры, таблица, вывод).
+    """
+    buffer = io.BytesIO()
+    period_word = "месяцев" if is_months else "недель"
+
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        # Лист 1: параметры + кластерный анализ
+        params_rows = [
+            ["Параметры отчёта", ""],
+            ["С когорты", cohort_start],
+            ["По когорту", cohort_end],
+            ["Анализируемый продукт", ", ".join(categories) if categories else "—"],
+            ["Период (недель/месяцев с когорты)", f"{k_periods} {period_word}"],
+        ]
+        params_df = pd.DataFrame(params_rows)
+        params_df.to_excel(writer, sheet_name="Параметры и кластеры", index=False, header=False)
+
+        # Кластерный анализ — под параметрами
+        if cluster_summary is not None and not cluster_summary.empty:
+            export_cols = [c for c in ["cluster", "clients", "pct", "total_volume", "pct_volume", "avg_client_per_period", "avg_regularity"] if c in cluster_summary.columns]
+            cluster_export = cluster_summary[export_cols] if export_cols else cluster_summary
+            col_names_ru = {
+                "cluster": "Кластер",
+                "clients": "Клиентов",
+                "pct": "% клиентов",
+                "total_volume": "Объём за период",
+                "pct_volume": "% объёма",
+                "avg_client_per_period": "Средний объём на клиента за период покупки",
+                "avg_regularity": "Регулярность",
+            }
+            cluster_export = cluster_export.rename(columns=col_names_ru)
+            start_row = len(params_rows) + 2
+            cluster_export.to_excel(writer, sheet_name="Параметры и кластеры", index=False, startrow=start_row)
+
+        # Лист 2: цикл жизни
+        sheet2_name = "Цикл жизни"
+        header_rows = [
+            ["Цикл жизни клиента якорного продукта"],
+            ["Выбранные кластеры для статистики", ", ".join(lifecycle_clusters) if lifecycle_clusters else "Все"],
+            [],
+        ]
+        header_df = pd.DataFrame(header_rows)
+        header_df.to_excel(writer, sheet_name=sheet2_name, index=False, header=False)
+
+        if lifecycle_table is not None and not lifecycle_table.empty:
+            table_start = len(header_rows) + 1
+            lifecycle_table.to_excel(writer, sheet_name=sheet2_name, index=False, startrow=table_start)
+
+        # Вывод (текст) — под таблицей
+        if lifecycle_output_text:
+            out_start = len(header_rows) + 1
+            if lifecycle_table is not None and not lifecycle_table.empty:
+                out_start += len(lifecycle_table) + 2
+            out_df = pd.DataFrame([["Вывод"], [lifecycle_output_text]])
+            out_df.to_excel(writer, sheet_name=sheet2_name, index=False, header=False, startrow=out_start)
+
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 def build_stacked_area(
@@ -565,6 +651,17 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_k_periods",
             )
 
+        if st.session_state.get("excel_report_bytes"):
+            st.download_button(
+                "Скачать полный отчёт в Excel",
+                data=st.session_state["excel_report_bytes"],
+                file_name="full_report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_full_report",
+            )
+        else:
+            st.caption("Полный отчёт в Excel будет доступен после просмотра блоков «Кластерный анализ» и «Цикл жизни» ниже.")
+
         idx_start_c = cohort_labels.index(cohort_start_global)
         idx_end_c = cohort_labels.index(cohort_end_global)
         if idx_start_c <= idx_end_c:
@@ -782,6 +879,8 @@ if uploaded_file_1 and uploaded_file_2:
                 denom_vol = total_volume_all if total_volume_all else 1
                 summary["pct_volume"] = (100.0 * summary["total_volume"] / denom_vol).round(1)
                 summary["pct_volume_fmt"] = summary["pct_volume"].astype(str) + "%"
+
+                st.session_state["report_cluster_summary"] = summary.copy()
 
                 col_cluster = "Кластер"
                 col_volume = "Объём продукта за период"
@@ -1502,6 +1601,25 @@ if uploaded_file_1 and uploaded_file_2:
                         lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
                     lifecycle_box_html += "</div>"
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
+
+                    # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
+                    cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
+                    lifecycle_text = _html_to_plain_text(lifecycle_box_html)
+                    try:
+                        excel_bytes = build_excel_report(
+                            cohort_start=cohort_start_global,
+                            cohort_end=cohort_end_global,
+                            categories=selected_categories_global,
+                            k_periods=int(k_periods_global),
+                            is_months=is_months,
+                            cluster_summary=cluster_summary_for_excel,
+                            lifecycle_clusters=selected_clusters_lifecycle,
+                            lifecycle_table=df_display,
+                            lifecycle_output_text=lifecycle_text,
+                        )
+                        st.session_state["excel_report_bytes"] = excel_bytes
+                    except Exception:
+                        st.session_state["excel_report_bytes"] = None
 
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
