@@ -832,7 +832,7 @@ if uploaded_file_1 and uploaded_file_2:
                         format_period_short(rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_MAIN], rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_SUB])
                         for lb in cohorts_short_data_c
                     ]
-                    st.warning(f"Увеличьте период данных, для корректного расчёта когорт ({', '.join(short_labels_c)})")
+                    st.warning(f"Увеличьте период данных или уменьшите кол-во недель/месяцев с покупки якорного продукта для корректного расчёта когорт ({', '.join(short_labels_c)})")
 
                 # Для каждого клиента — его период когорты (min period_rank по документу 1)
                 df1_cr = df1_with_period.copy()
@@ -1295,7 +1295,7 @@ if uploaded_file_1 and uploaded_file_2:
                         format_period_short(rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_MAIN], rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_SUB])
                         for lb in cohorts_short_data_lc
                     ]
-                    st.warning(f"Увеличьте период данных, для корректного расчёта когорт ({', '.join(short_labels_lc)})")
+                    st.warning(f"Увеличьте период данных или уменьшите кол-во недель/месяцев с покупки якорного продукта для корректного расчёта когорт ({', '.join(short_labels_lc)})")
 
                 def _in_window_lc(row):
                     c = row.get("_client_norm")
