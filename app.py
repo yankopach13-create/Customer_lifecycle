@@ -729,6 +729,17 @@ if uploaded_file_1 and uploaded_file_2:
         # --- Настройка параметров отчёта (применяется ко всем блокам) ---
         st.divider()
         st.subheader("Настройка параметров отчёта")
+        # Подтягиваем кнопку скачивания вверх, чтобы низ совпадал с селектом «По когорту»
+        st.markdown(
+            """
+            <style>
+            div[data-testid="column"]:has(iframe[height="46"]) {
+                margin-top: -26px !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         # Первый ряд: С когорты | Анализируемый продукт | Недель/месяцев
         r1_c1, r1_c2, r1_c3 = st.columns([1, 1, 1])
         with r1_c1:
@@ -755,10 +766,6 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_k_periods",
             )
         # Второй ряд: По когорту | пусто | Кнопка (нижняя граница кнопки в одну линию с «По когорту»)
-        st.markdown(
-            '<div style="margin-top: -12px;"></div>',
-            unsafe_allow_html=True,
-        )
         r2_c1, r2_c2, r2_c3 = st.columns([1, 1, 1])
         with r2_c1:
             cohort_end_global = st.selectbox(
