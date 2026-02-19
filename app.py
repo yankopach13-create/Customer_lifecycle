@@ -170,8 +170,10 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
             text-align: center;
             line-height: 1.2;
             box-sizing: border-box;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-        " onmouseover="this.style.opacity='0.9'; this.style.boxShadow='0 0 0 1px rgba(255,255,255,0.3)';" onmouseout="this.style.opacity='1'; this.style.boxShadow='none';">
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+            user-select: none;
+        " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 14px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.15)'; this.style.background='rgba(255,255,255,0.08)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.2)'; this.style.background='transparent';" onmousedown="this.style.transform='scale(0.98)';" onmouseup="this.style.transform='scale(1.02)';" onmouseleave="this.style.transform='scale(1)';">
             {button_label}
         </button>
     </div>
