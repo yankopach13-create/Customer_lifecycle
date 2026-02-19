@@ -203,7 +203,8 @@ def _lifecycle_cluster_selector_html(
     all_only: bool,
     selected_list: list,
 ) -> str:
-    """Строит HTML с чекбоксами-ссылками: «Все кластеры» и остальные взаимоисключающие (через query params)."""
+    """Строит HTML с чекбоксами-ссылками в стиле Streamlit: квадрат + подпись."""
+    # Стиль как у st.checkbox: маленький квадрат, подпись справа, цвет/шрифт под тему
     items_html = []
     for opt in options:
         is_all = opt == "Все кластеры"
@@ -219,17 +220,24 @@ def _lifecycle_cluster_selector_html(
                 else:
                     new_list = selected_list + [opt]
             href = "?lifecycle_clusters=" + quote(",".join(new_list))
-        mark = "✓" if checked else "☐"
         opt_esc = opt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+        box_style = (
+            "width:16px;height:16px;min-width:16px;min-height:16px;border-radius:4px;"
+            "border:1px solid rgba(250,250,250,0.4);display:inline-flex;align-items:center;justify-content:center;"
+            "font-size:11px;line-height:1;color:white;"
+            + ("background:#f63366;border-color:#f63366;" if checked else "background:transparent;")
+        )
+        check_mark = '<span style="color:white;font-size:12px;">✓</span>' if checked else ""
         items_html.append(
-            f'<a href="{href}" style="display:inline-block;margin-right:12px;padding:4px 8px;'
-            f'border-radius:4px;text-decoration:none;color:inherit;white-space:nowrap;'
-            f'background:{"rgba(255,255,255,0.12)" if checked else "transparent"};'
-            f'border:1px solid rgba(255,255,255,0.3);">'
-            f'<span style="margin-right:4px;">{mark}</span>{opt_esc}</a>'
+            f'<a href="{href}" style="display:inline-flex;align-items:center;gap:8px;'
+            f'text-decoration:none;color:rgba(250,250,250,0.95);font-size:0.9rem;'
+            f'white-space:nowrap;margin-right:16px;padding:2px 0;cursor:pointer;">'
+            f'<span style="{box_style}">{check_mark}</span>'
+            f'<span>{opt_esc}</span></a>'
         )
     return (
-        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:0.9rem;">'
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;'
+        'font-family:Source Sans Pro, sans-serif;">'
         + "".join(items_html)
         + "</div>"
     )
