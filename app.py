@@ -7,7 +7,6 @@ import base64
 import io
 import json
 import re
-from urllib.parse import quote, unquote
 import streamlit as st
 from openpyxl.styles import Alignment
 import streamlit.components.v1 as components
@@ -196,60 +195,6 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
     </script>
     """
     components.html(html, height=46)
-
-
-def _lifecycle_cluster_selector_html(
-    options: list,
-    all_only: bool,
-    selected_list: list,
-) -> str:
-    """Строит HTML с чекбоксами: клик через JS перезагружает страницу с query params (работает из iframe)."""
-    items_html = []
-    for opt in options:
-        is_all = opt == "Все кластеры"
-        checked = all_only if is_all else (opt in selected_list)
-        if is_all:
-            param = "lifecycle_all=1"
-        else:
-            if all_only:
-                new_list = [opt]
-            else:
-                if opt in selected_list:
-                    new_list = [s for s in selected_list if s != opt]
-                else:
-                    new_list = selected_list + [opt]
-            param = "lifecycle_clusters=" + quote(",".join(new_list))
-        # Атрибут для JS: переходим в основном окне, иначе iframe блокирует переход
-        param_esc = param.replace("&", "&amp;").replace('"', "&quot;")
-        opt_esc = opt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-        box_style = (
-            "width:16px;height:16px;min-width:16px;min-height:16px;border-radius:4px;"
-            "border:1px solid rgba(250,250,250,0.4);display:inline-flex;align-items:center;justify-content:center;"
-            "font-size:11px;line-height:1;color:white;"
-            + ("background:#f63366;border-color:#f63366;" if checked else "background:transparent;")
-        )
-        check_mark = '<span style="color:white;font-size:12px;">✓</span>' if checked else ""
-        items_html.append(
-            f'<span class="lc-cluster-opt" data-param="{param_esc}" style="display:inline-flex;align-items:center;gap:8px;'
-            f'white-space:nowrap;margin-right:16px;padding:4px 0;cursor:pointer;'
-            f'color:rgba(250,250,250,0.95);font-size:0.9rem;">'
-            f'<span style="{box_style}">{check_mark}</span>'
-            f'<span>{opt_esc}</span></span>'
-        )
-    return (
-        '<div style="display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;padding-bottom:16px;'
-        'font-family:Source Sans Pro, sans-serif;">'
-        + "".join(items_html)
-        + "<script>(function(){"
-        "var base = window.top.location.pathname || '/';"
-        "document.querySelectorAll('.lc-cluster-opt').forEach(function(el){"
-        "el.addEventListener('click', function(){"
-        "var p = this.getAttribute('data-param');"
-        "if(p) window.top.location = base + '?' + p;"
-        "});"
-        "});"
-        "})();</script></div>"
-    )
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -1282,33 +1227,26 @@ if uploaded_file_1 and uploaded_file_2:
         else:
             cohorts_to_use_lc = cohort_labels[idx_end_lc : idx_start_lc + 1]
 
-        cluster_options_display_lc = ["Все кластеры"] + [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
         st.caption("Отбор кластеров для статистики по неделям.")
-        # Обновляем session state из query params (клики по HTML-чекбоксам ведут сюда)
-        q = st.query_params
-        if "lifecycle_all" in q:
-            st.session_state["lifecycle_all_only"] = True
-            st.session_state["lifecycle_cluster_list_lc"] = []
-            try:
-                del st.query_params["lifecycle_all"]
-            except Exception:
-                pass
-        if "lifecycle_clusters" in q:
-            raw = q.get("lifecycle_clusters", "") or ""
-            names = [n.strip() for n in unquote(raw).split(",") if n.strip()]
-            st.session_state["lifecycle_all_only"] = False
-            st.session_state["lifecycle_cluster_list_lc"] = names
-            try:
-                del st.query_params["lifecycle_clusters"]
-            except Exception:
-                pass
-        all_only = st.session_state.get("lifecycle_all_only", True)
-        selected_list_lc = st.session_state.get("lifecycle_cluster_list_lc", [])
-        selected_clusters_lifecycle = ["Все кластеры"] if all_only else selected_list_lc
-        html_clusters = _lifecycle_cluster_selector_html(
-            cluster_options_display_lc, all_only, selected_list_lc
+        cluster_options_only = [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
+        mode_lc = st.radio(
+            "Режим отбора кластеров",
+            options=["Все кластеры", "Выбрать кластеры"],
+            index=0,
+            key="lifecycle_cluster_mode",
+            horizontal=True,
+            label_visibility="collapsed",
         )
-        components.html(html_clusters, height=92)
+        if mode_lc == "Все кластеры":
+            selected_clusters_lifecycle = ["Все кластеры"]
+        else:
+            selected_clusters_lifecycle = st.multiselect(
+                "Выберите кластеры",
+                options=cluster_options_only,
+                default=[],
+                key="lifecycle_clusters_multiselect",
+                label_visibility="collapsed",
+            )
 
         if not cohorts_to_use_lc:
             st.caption("Выберите хотя бы одну когорту.")
