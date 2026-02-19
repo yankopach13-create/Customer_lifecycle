@@ -1145,10 +1145,10 @@ if uploaded_file_1 and uploaded_file_2:
                     "</script>"
                     "</body></html>"
                 )
-                components.html(cluster_table_html, height=min(800, 280 + len(rows_html) * 40), scrolling=True)
+                components.html(cluster_table_html, height=min(520, 180 + len(rows_html) * 32), scrolling=True)
 
-                # Выбор кластеров для копирования кодов клиента (под таблицей кластеров)
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+                # Выбор кластеров для копирования кодов клиента (прямо под таблицей)
+                st.markdown("<div style='margin-top: 0.25rem;'></div>", unsafe_allow_html=True)
                 col_clusters_sel, col_copy_btn = st.columns([1, 1])
                 with col_clusters_sel:
                     selected_clusters_for_copy = st.multiselect(
