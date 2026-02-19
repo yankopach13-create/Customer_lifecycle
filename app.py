@@ -1333,7 +1333,7 @@ if uploaded_file_1 and uploaded_file_2:
                     anchor_esc_lc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     analyzable_esc_lc = analyzed_names_lc.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     sales_section_html = (
-                        f'<span class="block-section-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
                         f'<p class="block-p">Объём анализируемого товара на единицу якорного товара: <span class="block-num">{r_ratio_lc:.2f}</span>.</p>'
                         f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
                         f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
@@ -1341,7 +1341,7 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                 else:
                     sales_section_html = (
-                        f'<span class="block-section-title">Продажи анализируемого товара на объём якорного</span>'
+                        f'<span class="block-block-title">Продажи анализируемого товара на объём якорного</span>'
                         f'<p class="block-p">В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.</p>'
                     )
 
@@ -1642,9 +1642,16 @@ if uploaded_file_1 and uploaded_file_2:
                         cohorts_list_str = cohort_short_names[0]
                     else:
                         cohorts_list_str = f"{cohort_short_names[0]}-{cohort_short_names[-1]}"
-                    p1_intro = (
-                        f"По выбранным когортам: <span class=\"block-num\">{len(cohorts_to_use_lc)}</span> когорт (<span class=\"block-product\">{cohorts_list_str}</span>), "
-                        f"<span class=\"block-num\">{N_lc}</span> клиентов, первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты."
+                    n_c = len(cohorts_to_use_lc)
+                    if n_c % 10 == 1 and n_c != 11:
+                        cohort_word = "когорта"
+                    elif n_c % 10 in (2, 3, 4) and n_c not in (12, 13, 14):
+                        cohort_word = "когорты"
+                    else:
+                        cohort_word = "когорт"
+                    header_first_line = (
+                        f"{period_range_caption_lc}; <span class=\"block-num\">{n_c}</span> {cohort_word} (<span class=\"block-product\">{cohorts_list_str}</span>); "
+                        f"<span class=\"block-num\">{N_lc}</span> клиентов; Первые <span class=\"block-num\">{k_int_lc}</span> {period_unit_plural} с момента когорты."
                     )
                     p1_anchor_body = (
                         f"Доля клиентов, покупающих якорный продукт <span class=\"block-product\">{anchor_name_esc}</span>: "
@@ -1719,6 +1726,8 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
                         ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; padding-bottom: 0.4rem; margin-bottom: 0; display: block; }"
                         ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.35); margin: 0.75rem 0; }"
+                        ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.98); display: block; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.15); padding: 0.5rem 0.6rem; border-radius: 6px; margin-top: 0; }"
+                        ".block-result-box .block-block-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-section-title { font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: rgba(255,255,255,0.95); display: block; font-size: 0.95rem; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
@@ -1726,11 +1735,11 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
                         f'<div class="block-result-box">'
-                        f'<span class="block-period-caption">{period_range_caption_lc}</span>'
+                        f'<span class="block-period-caption">{header_first_line}</span>'
                         f'<div class="block-divider"></div>'
                         f'{sales_section_html}'
                         f'<div class="block-divider"></div>'
-                        f'<p class="block-p">{p1_intro}</p>'
+                        f'<span class="block-block-title">Цикл жизни клиента</span>'
                         f'<span class="block-section-title">Якорный продукт</span>'
                         f'<p class="block-p">{p1_anchor_body}</p>'
                     )
