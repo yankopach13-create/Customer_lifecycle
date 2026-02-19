@@ -1277,9 +1277,7 @@ if uploaded_file_1 and uploaded_file_2:
                 client_cohort_rank_lc = df1_cr_lc.groupby("_client_norm")["period_rank"].min()
 
                 k_int_lc = int(k_periods_lifecycle)
-                if "lifecycle_anchor_units" not in st.session_state:
-                    st.session_state["lifecycle_anchor_units"] = 100
-                n_anchor_lc = st.session_state["lifecycle_anchor_units"]
+                n_anchor_lc = 100  # фиксированное число для расчёта и фразы «При продаже … будет продано …»
                 client_cohort_rank_dict_lc = client_cohort_rank_lc.to_dict()
 
                 def _in_window_lc(row):
@@ -1733,14 +1731,22 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
                     )
-                    # Один большой серый блок: период, продажи, цикл жизни клиента
+                    # Один большой серый блок: период, продажи, фраза «При продаже 100 ед. …», цикл жизни клиента
                     lifecycle_box_html = (
                         lifecycle_box_css
                         + f'<div class="block-result-box">'
                         + f'<span class="block-period-caption">{header_first_line}</span>'
                         + f'<div class="block-divider"></div>'
                         + sales_section_html
-                        + f'<div class="block-divider"></div>'
+                    )
+                    if q_anchor_lc and q_anchor_lc > 0:
+                        lifecycle_box_html += (
+                            f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
+                            f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
+                        )
+                    lifecycle_box_html += (
+                        f'<div class="block-divider"></div>'
                         + f'<span class="block-block-title">Цикл жизни клиента</span>'
                         + f'<span class="block-section-title">Якорный продукт</span>'
                         + f'<p class="block-p">{p1_anchor_body}</p>'
