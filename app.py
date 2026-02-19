@@ -1230,7 +1230,11 @@ if uploaded_file_1 and uploaded_file_2:
         st.caption("Отбор кластеров для статистики по неделям.")
         cluster_options_only = [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
         cluster_options_with_all = ["Все кластеры"] + cluster_options_only
-        default_lc = st.session_state.get("lifecycle_clusters_selection", ["Все кластеры"])
+        if "lifecycle_clusters_selection" not in st.session_state:
+            st.session_state["lifecycle_clusters_selection"] = ["Все кластеры"]
+        if "lifecycle_clusters_multiselect" not in st.session_state:
+            st.session_state["lifecycle_clusters_multiselect"] = ["Все кластеры"]
+        default_lc = st.session_state["lifecycle_clusters_selection"]
         raw_selection = st.multiselect(
             "Кластеры",
             options=cluster_options_with_all,
