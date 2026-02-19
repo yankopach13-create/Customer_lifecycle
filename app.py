@@ -323,6 +323,15 @@ def build_excel_report(
     return buffer.getvalue()
 
 
+def _placeholder_excel_bytes() -> bytes:
+    """Минимальный валидный xlsx для кнопки, когда полный отчёт ещё не сформирован."""
+    buf = io.BytesIO()
+    placeholder_df = pd.DataFrame([["Отчёт сформируется после просмотра блоков «Кластерный анализ» и «Цикл жизни» ниже."]])
+    placeholder_df.to_excel(buf, sheet_name="Инфо", index=False, header=False)
+    buf.seek(0)
+    return buf.getvalue()
+
+
 def build_stacked_area(
     df_plot, x_col, value_col, stack_col, title, value_label,
     x_order=None, show_title=True, xaxis_title=None, xaxis_side="bottom",
@@ -651,16 +660,14 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_k_periods",
             )
 
-        if st.session_state.get("excel_report_bytes"):
-            st.download_button(
-                "Скачать полный отчёт в Excel",
-                data=st.session_state["excel_report_bytes"],
-                file_name="full_report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_full_report",
-            )
-        else:
-            st.caption("Полный отчёт в Excel будет доступен после просмотра блоков «Кластерный анализ» и «Цикл жизни» ниже.")
+        excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
+        st.download_button(
+            "Скачать полный отчёт в Excel",
+            data=excel_data,
+            file_name="full_report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_full_report",
+        )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
         idx_end_c = cohort_labels.index(cohort_end_global)
