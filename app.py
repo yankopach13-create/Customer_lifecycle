@@ -3,6 +3,7 @@
 Streamlit-приложение для загрузки отчётов из Qlik по шаблону.
 """
 
+import base64
 import io
 import json
 import re
@@ -145,6 +146,53 @@ def create_copy_button(text: str, button_label: str, key: str) -> None:
     </script>
     """
     components.html(html, height=85)
+
+
+def create_excel_download_button(excel_bytes: bytes, filename: str, button_label: str, key: str) -> None:
+    """Создаёт HTML-кнопку скачивания Excel (полный контроль над размером и визуалом, как на скриншоте)."""
+    safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(key))
+    b64 = base64.b64encode(excel_bytes).decode("ascii")
+    filename_esc = json.dumps(filename)
+    html = f"""
+    <div style="width: 100%; margin: 0;">
+        <button id="excel_btn_{safe_key}" type="button" style="
+            width: 100%;
+            height: 2.5rem;
+            min-height: 2.5rem;
+            padding: 8px 12px;
+            background: transparent;
+            color: #9333ea;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border: 2px solid #adb5bd;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            line-height: 1.25;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        " onmouseover="this.style.borderColor='#6c757d'; this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)';" onmouseout="this.style.borderColor='#adb5bd'; this.style.boxShadow='none';">
+            {button_label}
+        </button>
+    </div>
+    <script>
+        (function() {{
+            var btn = document.getElementById('excel_btn_{safe_key}');
+            var b64 = {json.dumps(b64)};
+            var filename = {filename_esc};
+            btn.addEventListener('click', function() {{
+                var dataUri = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + b64;
+                var a = document.createElement('a');
+                a.href = dataUri;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }});
+        }})();
+    </script>
+    """
+    components.html(html, height=52)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -709,40 +757,13 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="report_k_periods",
             )
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stDownloadButton"] button {
-                    width: 100% !important;
-                    padding: 8px 12px !important;
-                    background: transparent !important;
-                    color: #9333ea !important;
-                    border: 2px solid #adb5bd !important;
-                    border-radius: 8px !important;
-                    font-size: 0.9rem !important;
-                    font-weight: 700 !important;
-                    min-height: unset !important;
-                    height: 2.5rem !important;
-                    line-height: 1.25 !important;
-                    text-align: center !important;
-                    box-shadow: none !important;
-                    transition: all 0.2s ease !important;
-                }
-                div[data-testid="stDownloadButton"] button:hover {
-                    border-color: #6c757d !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
             excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
             report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
-            st.download_button(
+            create_excel_download_button(
+                excel_data,
+                report_filename,
                 "Скачать полный отчёт в Excel",
-                data=excel_data,
-                file_name=report_filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_full_report",
+                "download_full_report",
             )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
