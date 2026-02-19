@@ -7,7 +7,6 @@ import io
 import json
 import re
 import streamlit as st
-from openpyxl.comments import Comment
 from openpyxl.styles import Alignment
 import streamlit.components.v1 as components
 import pandas as pd
@@ -318,6 +317,27 @@ def build_excel_report(
             cluster_export = cluster_export.rename(columns=col_names_ru)
             cluster_export.to_excel(writer, sheet_name="Параметры и кластеры", index=False, startrow=start_row)
 
+            # Под таблицей — описание кластеров в 3 столбцах (кластер, описание, критерий), ячейки с переносом текста
+            desc_rows = []
+            for cluster_name in cluster_summary["cluster"].tolist():
+                if cluster_name == "Итого":
+                    continue
+                comment_text = cluster_comments.get(cluster_name, "")
+                if "\n\nКритерии: " in comment_text:
+                    desc_part, crit_part = comment_text.split("\n\nКритерии: ", 1)
+                    desc_rows.append((_cluster_display_name(cluster_name), desc_part.strip(), crit_part.strip()))
+                else:
+                    desc_rows.append((_cluster_display_name(cluster_name), comment_text.strip(), ""))
+            if desc_rows:
+                desc_df = pd.DataFrame(desc_rows, columns=["Кластер", "Описание", "Критерии"])
+                desc_start = start_row + 2 + len(cluster_export)
+                desc_df.to_excel(writer, sheet_name="Параметры и кластеры", index=False, startrow=desc_start)
+                ws1 = writer.sheets["Параметры и кластеры"]
+                for r in range(desc_start + 1, desc_start + 2 + len(desc_df)):
+                    for c in range(1, 4):
+                        cell = ws1.cell(row=r, column=c)
+                        cell.alignment = Alignment(wrap_text=True, vertical="top")
+
         # Лист 2: цикл жизни
         sheet2_name = "Цикл жизни"
         header_rows = [
@@ -333,18 +353,6 @@ def build_excel_report(
             lifecycle_table.to_excel(writer, sheet_name=sheet2_name, index=False, startrow=table_start)
 
         out_start_row = table_start + (len(lifecycle_table) + 2 if lifecycle_table is not None and not lifecycle_table.empty else 0)
-
-        # Примечания на ячейках кластеров (лист 1) — в том же порядке, что и строки таблицы (header в start_row, данные с start_row+1)
-        ws1 = writer.sheets["Параметры и кластеры"]
-        if cluster_summary is not None and not cluster_summary.empty:
-            cluster_list_ordered = cluster_summary["cluster"].tolist()
-            for i, cluster_name in enumerate(cluster_list_ordered):
-                comment_text = cluster_comments.get(cluster_name)
-                if comment_text:
-                    # pandas to_excel(startrow=N): заголовок в строке N+1, данные в N+2, N+3, ... (1-based в openpyxl)
-                    data_row_excel = start_row + 2 + i
-                    cell = ws1.cell(row=data_row_excel, column=1)
-                    cell.comment = Comment(comment_text[:32767], "CLF")
 
         # Вывод на листе Цикл жизни — объединённая ячейка с переносом текста
         if lifecycle_output_text:
@@ -708,24 +716,21 @@ if uploaded_file_1 and uploaded_file_2:
                 <style>
                 div[data-testid="stDownloadButton"] button {
                     width: 100% !important;
-                    padding: 12px 16px !important;
+                    padding: 6px 12px !important;
                     background: transparent !important;
                     color: #fff !important;
                     border: 2px solid #adb5bd !important;
                     border-radius: 8px !important;
-                    font-size: 0.85rem !important;
-                    font-weight: 700 !important;
-                    min-height: 72px !important;
-                    line-height: 1.3 !important;
+                    font-size: 0.9rem !important;
+                    font-weight: 600 !important;
+                    min-height: unset !important;
+                    height: auto !important;
+                    line-height: 1.4 !important;
                     text-align: center !important;
-                    white-space: normal !important;
-                    word-wrap: break-word !important;
                     box-shadow: none !important;
-                    transition: all 0.3s ease !important;
+                    transition: all 0.2s ease !important;
                 }
                 div[data-testid="stDownloadButton"] button:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
                     border-color: #6c757d !important;
                 }
                 </style>
