@@ -712,178 +712,10 @@ if uploaded_file_1 and uploaded_file_2:
                 unsafe_allow_html=True,
             )
 
-        # График под блоком выбора и таблицы — на всю ширину, выше
-        add_total = stack_col == COL_CATEGORY and len(clients_by_period[stack_col].unique()) >= 2
-        clients_total_arr = clients_total.values if add_total else None
-        qty_total_arr = qty_total.values if add_total else None
-        fig_combined = build_combined_two_charts(
-            clients_by_period,
-            qty_by_period,
-            x_col_short,
-            period_labels_short,
-            stack_col,
-            add_total=add_total,
-            clients_total_values=clients_total_arr,
-            qty_total_values=qty_total_arr,
-        )
-        st.subheader("Стековая диаграмма с областями")
-        st.plotly_chart(fig_combined, use_container_width=True)
-
-        # --- Блок «Продажи анализируемого продукта на объём якорного» ---
-        st.divider()
-        st.subheader("Продажи анализируемого продукта на объём якорного")
-
-        # Определение типа периода по данным (недели или месяцы)
+        # Определение типа периода по данным (недели или месяцы) — используется в кластерах, цикле жизни и блоке продаж
         period_sub_str = period_order[COL_PERIOD_SUB].astype(str).str.lower()
         is_months = period_sub_str.str.contains(r"янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек", regex=True).any()
         period_word = "месяцев" if is_months else "недель"
-
-        st.markdown('<div id="sales-block-wrap">', unsafe_allow_html=True)
-        col_cohorts_block, col_analyzed_block, col_params = st.columns([1, 1, 1])
-        with col_cohorts_block:
-            cohort_start_block = st.selectbox(
-                "С когорты",
-                options=cohort_labels,
-                index=0,
-                key="block_cohort_start",
-            )
-            cohort_end_block = st.selectbox(
-                "По когорту",
-                options=cohort_labels,
-                index=0,
-                key="block_cohort_end",
-            )
-        with col_analyzed_block:
-            selected_categories_block = st.multiselect(
-                "Анализируемый продукт",
-                options=all_categories,
-                default=categories_from_doc1,
-                key="block_categories",
-                help="Категории для расчёта ожидаемых продаж (расчёт использует только этот выбор).",
-            )
-        with col_params:
-            n_anchor = st.number_input("Кол-во якорного товара", min_value=1, value=10, step=1, key="block_n_anchor")
-            k_periods = st.number_input(
-                "Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
-                min_value=1,
-                value=5,
-                step=1,
-                key="block_k_weeks",
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        idx_start = cohort_labels.index(cohort_start_block)
-        idx_end = cohort_labels.index(cohort_end_block)
-        if idx_start <= idx_end:
-            cohorts_to_use = cohort_labels[idx_start : idx_end + 1]
-        else:
-            cohorts_to_use = cohort_labels[idx_end : idx_start + 1]
-
-        if not cohorts_to_use:
-            st.caption("Выберите хотя бы одну когорту для расчёта.")
-        else:
-                # Клиенты выбранных когорт (нормализованный id)
-                cohort_clients_block = set()
-                for lb in cohorts_to_use:
-                    r = cohort_ranks[lb]
-                    pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
-                    pm, ps = str(pm).strip(), str(ps).strip()
-                    clients_r = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
-                    cohort_clients_block.update(_norm_client_id(clients_r).tolist())
-                # Для каждого клиента — его неделя когорты (min period_rank по док 1)
-                df1_cr = df1_with_period.copy()
-                df1_cr["_client_norm"] = _norm_client_id(df1_cr[COL_CLIENT])
-                df1_cr = df1_cr[df1_cr["_client_norm"].isin(cohort_clients_block)]
-                client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min().to_dict()
-
-                # Окно для каждого клиента: [cohort_rank, cohort_rank + k_periods - 1]
-                def in_window(row):
-                    c = row.get("_client_norm")
-                    r0 = client_cohort_rank.get(c)
-                    if r0 is None:
-                        return False
-                    pr = row.get("period_rank")
-                    if pd.isna(pr):
-                        return False
-                    return r0 <= pr < r0 + k_periods
-
-                # Якорный: док 1 (вся категория якоря), только клиенты блока и окно
-                df1_block = df1_with_period.copy()
-                df1_block["_client_norm"] = _norm_client_id(df1_block[COL_CLIENT])
-                df1_block = df1_block[df1_block["_client_norm"].isin(cohort_clients_block)]
-                df1_block["_in_window"] = df1_block.apply(in_window, axis=1)
-                q_anchor = df1_block.loc[df1_block["_in_window"], COL_QUANTITY].sum()
-
-                # Анализируемый: по категориям (док 1 и док 2) для разбивки при нескольких категориях
-                selected_in_doc1_block = [c for c in selected_categories_block if c in categories_from_doc1_set]
-                selected_in_doc2_block = [c for c in selected_categories_block if c in set(categories_from_doc2)]
-                parts_an = []
-                if selected_in_doc1_block:
-                    d1 = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_block)].copy()
-                    d1["_client_norm"] = _norm_client_id(d1[COL_CLIENT])
-                    d1 = d1[d1["_client_norm"].isin(cohort_clients_block)]
-                    d1["_in_window"] = d1.apply(in_window, axis=1)
-                    parts_an.append(d1.loc[d1["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
-                if selected_in_doc2_block:
-                    d2 = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_block)].copy()
-                    d2["_client_norm"] = _norm_client_id(d2[COL_CLIENT])
-                    d2 = d2[d2["_client_norm"].isin(cohort_clients_block)]
-                    d2["_in_window"] = d2.apply(in_window, axis=1)
-                    parts_an.append(d2.loc[d2["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
-                if parts_an:
-                    df_an = pd.concat(parts_an, ignore_index=True)
-                    q_by_cat = df_an.groupby(COL_CATEGORY)[COL_QUANTITY].sum().reindex(selected_categories_block).fillna(0).astype(int)
-                else:
-                    q_by_cat = pd.Series(dtype=int)
-                q_analyzed = int(q_by_cat.sum()) if len(q_by_cat) else 0
-
-                if q_anchor and q_anchor > 0:
-                    r_ratio = q_analyzed / q_anchor
-                    expected = n_anchor * r_ratio
-                    expected_int = int(round(expected))
-                    anchor_name = category_label
-                    period_range_caption = format_period_range_for_caption(
-                        cohorts_to_use, cohort_ranks, rank_to_period, k_periods, is_months
-                    )
-                    # Одна категория — как раньше; несколько — разбивка «из них X ед. категория1 и Y ед. категория2»
-                    if len(selected_categories_block) > 1 and len(q_by_cat) > 0:
-                        expected_by_cat = (q_by_cat / q_anchor * n_anchor).round(1)
-                        _fmt = lambda x: f"{x:.1f}".replace(".", ",")
-                        parts_main = [f'<span class="block-num">{_fmt(expected_by_cat[c])}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in expected_by_cat.index]
-                        main_tail = " и ".join(parts_main)
-                        main_html = (
-                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
-                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
-                            f'<span class="block-num">{expected_int}</span> ед., из них {main_tail}.'
-                        )
-                        ratio_parts = [f'<span class="block-num">{_fmt(q_by_cat[c] / q_anchor)}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in q_by_cat.index]
-                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span> ед., из них {" и ".join(ratio_parts)}.'
-                    else:
-                        analyzed_names = selected_categories_block[0] if selected_categories_block else "анализируемого продукта"
-                        main_html = (
-                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
-                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
-                            f'<span class="block-num">{expected_int}</span> ед. <span class="block-product">{analyzed_names}</span>.'
-                        )
-                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
-                    st.markdown(
-                        f"""
-                        <style>
-                        .block-result-box {{ background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
-                        .block-result-box .block-period-caption {{ font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }}
-                        .block-result-box .block-num {{ color: #e85d04; font-size: 1.25rem; font-weight: bold; }}
-                        .block-result-box .block-product {{ font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }}
-                        </style>
-                        <div class="block-result-box">
-                        <span class="block-period-caption">{period_range_caption}</span>
-                        <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
-                        <p style="margin: 0; font-size: 0.95rem;">{ref_html}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
 
         # --- Блок «Кластерный анализ» ---
         st.markdown("<div style='margin: 0.35rem 0; height: 1px; background: #dee2e6;'></div>", unsafe_allow_html=True)
@@ -1801,5 +1633,157 @@ if uploaded_file_1 and uploaded_file_2:
                         lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
                     lifecycle_box_html += "</div>"
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
+
+        # --- Блок «Продажи анализируемого продукта на объём якорного» ---
+        st.divider()
+        st.subheader("Продажи анализируемого продукта на объём якорного")
+
+        st.markdown('<div id="sales-block-wrap">', unsafe_allow_html=True)
+        col_cohorts_block, col_analyzed_block, col_params = st.columns([1, 1, 1])
+        with col_cohorts_block:
+            cohort_start_block = st.selectbox(
+                "С когорты",
+                options=cohort_labels,
+                index=0,
+                key="block_cohort_start",
+            )
+            cohort_end_block = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="block_cohort_end",
+            )
+        with col_analyzed_block:
+            selected_categories_block = st.multiselect(
+                "Анализируемый продукт",
+                options=all_categories,
+                default=categories_from_doc1,
+                key="block_categories",
+                help="Категории для расчёта ожидаемых продаж (расчёт использует только этот выбор).",
+            )
+        with col_params:
+            n_anchor = st.number_input("Кол-во якорного товара", min_value=1, value=10, step=1, key="block_n_anchor")
+            k_periods = st.number_input(
+                "Недель/месяцев с покупки якорного (включая неделю/месяц когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="block_k_weeks",
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        idx_start = cohort_labels.index(cohort_start_block)
+        idx_end = cohort_labels.index(cohort_end_block)
+        if idx_start <= idx_end:
+            cohorts_to_use = cohort_labels[idx_start : idx_end + 1]
+        else:
+            cohorts_to_use = cohort_labels[idx_end : idx_start + 1]
+
+        if not cohorts_to_use:
+            st.caption("Выберите хотя бы одну когорту для расчёта.")
+        else:
+                # Клиенты выбранных когорт (нормализованный id)
+                cohort_clients_block = set()
+                for lb in cohorts_to_use:
+                    r = cohort_ranks[lb]
+                    pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
+                    pm, ps = str(pm).strip(), str(ps).strip()
+                    clients_r = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT]
+                    cohort_clients_block.update(_norm_client_id(clients_r).tolist())
+                # Для каждого клиента — его неделя когорты (min period_rank по док 1)
+                df1_cr = df1_with_period.copy()
+                df1_cr["_client_norm"] = _norm_client_id(df1_cr[COL_CLIENT])
+                df1_cr = df1_cr[df1_cr["_client_norm"].isin(cohort_clients_block)]
+                client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min().to_dict()
+
+                # Окно для каждого клиента: [cohort_rank, cohort_rank + k_periods - 1]
+                def in_window(row):
+                    c = row.get("_client_norm")
+                    r0 = client_cohort_rank.get(c)
+                    if r0 is None:
+                        return False
+                    pr = row.get("period_rank")
+                    if pd.isna(pr):
+                        return False
+                    return r0 <= pr < r0 + k_periods
+
+                # Якорный: док 1 (вся категория якоря), только клиенты блока и окно
+                df1_block = df1_with_period.copy()
+                df1_block["_client_norm"] = _norm_client_id(df1_block[COL_CLIENT])
+                df1_block = df1_block[df1_block["_client_norm"].isin(cohort_clients_block)]
+                df1_block["_in_window"] = df1_block.apply(in_window, axis=1)
+                q_anchor = df1_block.loc[df1_block["_in_window"], COL_QUANTITY].sum()
+
+                # Анализируемый: по категориям (док 1 и док 2) для разбивки при нескольких категориях
+                selected_in_doc1_block = [c for c in selected_categories_block if c in categories_from_doc1_set]
+                selected_in_doc2_block = [c for c in selected_categories_block if c in set(categories_from_doc2)]
+                parts_an = []
+                if selected_in_doc1_block:
+                    d1 = df1_with_period[df1_with_period[COL_CATEGORY].isin(selected_in_doc1_block)].copy()
+                    d1["_client_norm"] = _norm_client_id(d1[COL_CLIENT])
+                    d1 = d1[d1["_client_norm"].isin(cohort_clients_block)]
+                    d1["_in_window"] = d1.apply(in_window, axis=1)
+                    parts_an.append(d1.loc[d1["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
+                if selected_in_doc2_block:
+                    d2 = df2_with_period[df2_with_period[COL_CATEGORY].isin(selected_in_doc2_block)].copy()
+                    d2["_client_norm"] = _norm_client_id(d2[COL_CLIENT])
+                    d2 = d2[d2["_client_norm"].isin(cohort_clients_block)]
+                    d2["_in_window"] = d2.apply(in_window, axis=1)
+                    parts_an.append(d2.loc[d2["_in_window"], [COL_CATEGORY, COL_QUANTITY]])
+                if parts_an:
+                    df_an = pd.concat(parts_an, ignore_index=True)
+                    q_by_cat = df_an.groupby(COL_CATEGORY)[COL_QUANTITY].sum().reindex(selected_categories_block).fillna(0).astype(int)
+                else:
+                    q_by_cat = pd.Series(dtype=int)
+                q_analyzed = int(q_by_cat.sum()) if len(q_by_cat) else 0
+
+                if q_anchor and q_anchor > 0:
+                    r_ratio = q_analyzed / q_anchor
+                    expected = n_anchor * r_ratio
+                    expected_int = int(round(expected))
+                    anchor_name = category_label
+                    period_range_caption = format_period_range_for_caption(
+                        cohorts_to_use, cohort_ranks, rank_to_period, k_periods, is_months
+                    )
+                    # Одна категория — как раньше; несколько — разбивка «из них X ед. категория1 и Y ед. категория2»
+                    if len(selected_categories_block) > 1 and len(q_by_cat) > 0:
+                        expected_by_cat = (q_by_cat / q_anchor * n_anchor).round(1)
+                        _fmt = lambda x: f"{x:.1f}".replace(".", ",")
+                        parts_main = [f'<span class="block-num">{_fmt(expected_by_cat[c])}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in expected_by_cat.index]
+                        main_tail = " и ".join(parts_main)
+                        main_html = (
+                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
+                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int}</span> ед., из них {main_tail}.'
+                        )
+                        ratio_parts = [f'<span class="block-num">{_fmt(q_by_cat[c] / q_anchor)}</span> ед. <span class="block-product">{c}</span>' for c in selected_categories_block if c in q_by_cat.index]
+                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span> ед., из них {" и ".join(ratio_parts)}.'
+                    else:
+                        analyzed_names = selected_categories_block[0] if selected_categories_block else "анализируемого продукта"
+                        main_html = (
+                            f'При продаже <span class="block-num">{int(n_anchor)}</span> ед. <span class="block-product">{anchor_name}</span> в течении '
+                            f'<span class="block-num">{int(k_periods)}</span> {period_word} будет продано '
+                            f'<span class="block-num">{expected_int}</span> ед. <span class="block-product">{analyzed_names}</span>.'
+                        )
+                        ref_html = f'Ед. анализируемого товара на ед. якорного товара: <span class="block-num">{r_ratio:.2f}</span>'
+                    st.markdown(
+                        f"""
+                        <style>
+                        .block-result-box {{ background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }}
+                        .block-result-box .block-period-caption {{ font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.35); padding-bottom: 0.4rem; margin-bottom: 0.5rem; display: block; }}
+                        .block-result-box .block-num {{ color: #e85d04; font-size: 1.25rem; font-weight: bold; }}
+                        .block-result-box .block-product {{ font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }}
+                        </style>
+                        <div class="block-result-box">
+                        <span class="block-period-caption">{period_range_caption}</span>
+                        <p style="margin: 0 0 0.5rem 0; font-size: 1rem;">{main_html}</p>
+                        <p style="margin: 0; font-size: 0.95rem;">{ref_html}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.warning("В выбранных когортах и периоде нет покупок якорного товара — коэффициент не рассчитан.")
+
     else:
         st.warning("Загрузите оба документа в формате по шаблону (5 столбцов: категория, период, период, количество, код клиента).")
