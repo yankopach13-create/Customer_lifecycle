@@ -154,24 +154,24 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
     b64 = base64.b64encode(excel_bytes).decode("ascii")
     filename_esc = json.dumps(filename)
     html = f"""
-    <div style="width: 100%; margin: 0;">
+    <div style="width: 100%; margin: 0.75rem 0 0 0;">
         <button id="excel_btn_{safe_key}" type="button" style="
             width: 100%;
-            height: 2.5rem;
-            min-height: 2.5rem;
-            padding: 8px 12px;
-            background: #9333ea;
-            color: white;
+            height: 2.25rem;
+            min-height: 2.25rem;
+            padding: 6px 12px;
+            background: #e9d5ff;
+            color: #5b21b6;
             font-weight: 700;
-            font-size: 0.9rem;
-            border: 4px solid #6b21a8;
-            border-radius: 8px;
+            font-size: 0.85rem;
+            border: 2px solid #c4b5fd;
+            border-radius: 6px;
             cursor: pointer;
             text-align: center;
-            line-height: 1.25;
+            line-height: 1.2;
             box-sizing: border-box;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        " onmouseover="this.style.borderColor='#5b1a9a'; this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)';" onmouseout="this.style.borderColor='#6b21a8'; this.style.boxShadow='none';">
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        " onmouseover="this.style.background='#ddd6fe'; this.style.borderColor='#a78bfa'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)';" onmouseout="this.style.background='#e9d5ff'; this.style.borderColor='#c4b5fd'; this.style.boxShadow='none';">
             {button_label}
         </button>
     </div>
@@ -192,7 +192,7 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
         }})();
     </script>
     """
-    components.html(html, height=52)
+    components.html(html, height=48)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
