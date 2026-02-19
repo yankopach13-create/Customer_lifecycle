@@ -734,7 +734,7 @@ if uploaded_file_1 and uploaded_file_2:
             """
             <style>
             div[data-testid="column"]:has(iframe[height="46"]) {
-                margin-top: -26px !important;
+                margin-top: 22px !important;
             }
             </style>
             """,
