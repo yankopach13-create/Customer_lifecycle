@@ -824,6 +824,16 @@ if uploaded_file_1 and uploaded_file_2:
             if not cohort_clients_c:
                 st.info("В выбранных когортах нет клиентов (по документу 1).")
             else:
+                max_rank = int(period_order["period_rank"].max())
+                k_int = int(k_periods_cluster)
+                cohorts_short_data_c = [lb for lb in cohorts_to_use_c if cohort_ranks[lb] > max_rank - k_int + 1]
+                if cohorts_short_data_c:
+                    short_labels_c = [
+                        format_period_short(rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_MAIN], rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_SUB])
+                        for lb in cohorts_short_data_c
+                    ]
+                    st.warning(f"Увеличьте период данных, для корректного расчёта когорт ({', '.join(short_labels_c)})")
+
                 # Для каждого клиента — его период когорты (min period_rank по документу 1)
                 df1_cr = df1_with_period.copy()
                 df1_cr["_client_norm"] = _norm_client_id(df1_cr[COL_CLIENT])
@@ -831,8 +841,6 @@ if uploaded_file_1 and uploaded_file_2:
                 client_cohort_rank = df1_cr.groupby("_client_norm")["period_rank"].min()
 
                 # Сколько периодов доступно для наблюдения (для поздних когорт окно может упираться в конец данных)
-                max_rank = int(period_order["period_rank"].max())
-                k_int = int(k_periods_cluster)
                 available_periods = (max_rank - client_cohort_rank + 1).clip(lower=0, upper=k_int).astype(int)
 
                 # Собираем покупки анализируемого продукта из документа 1 и/или документа 2
@@ -1280,6 +1288,15 @@ if uploaded_file_1 and uploaded_file_2:
                 n_anchor_lc = 100  # фиксированное число для расчёта и фразы «При продаже … будет продано …»
                 client_cohort_rank_dict_lc = client_cohort_rank_lc.to_dict()
 
+                max_rank_lc = int(period_order["period_rank"].max())
+                cohorts_short_data_lc = [lb for lb in cohorts_to_use_lc if cohort_ranks[lb] > max_rank_lc - k_int_lc + 1]
+                if cohorts_short_data_lc:
+                    short_labels_lc = [
+                        format_period_short(rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_MAIN], rank_to_period.loc[cohort_ranks[lb], COL_PERIOD_SUB])
+                        for lb in cohorts_short_data_lc
+                    ]
+                    st.warning(f"Увеличьте период данных, для корректного расчёта когорт ({', '.join(short_labels_lc)})")
+
                 def _in_window_lc(row):
                     c = row.get("_client_norm")
                     r0 = client_cohort_rank_dict_lc.get(c)
@@ -1313,9 +1330,12 @@ if uploaded_file_1 and uploaded_file_2:
                     .rename(columns={COL_CATEGORY: "categories"})
                 )
 
-                # Кластеры по объёму и регулярности анализируемого в окне K
+                # Кластеры по объёму и регулярности анализируемого в окне K (как в блоке «Кластерный анализ»)
+                available_periods_lc = (max_rank_lc - client_cohort_rank_lc + 1).clip(lower=0, upper=k_int_lc).astype(int)
+
                 per_client_lc = pd.DataFrame({"client_id": sorted(cohort_clients_lc)})
                 per_client_lc["cohort_rank"] = per_client_lc["client_id"].map(client_cohort_rank_lc).astype(float)
+                per_client_lc["available_periods"] = per_client_lc["client_id"].map(available_periods_lc).fillna(k_int_lc).astype(int)
                 df_analyzable_lc = df_purchases_lc[df_purchases_lc[COL_CATEGORY].isin(analyzable_list)].copy()
                 df_analyzable_lc = df_analyzable_lc.merge(per_client_lc[["client_id", "cohort_rank"]], on="client_id", how="inner")
                 df_analyzable_lc["_in_window"] = (df_analyzable_lc["period_rank"] >= df_analyzable_lc["cohort_rank"]) & (df_analyzable_lc["period_rank"] < df_analyzable_lc["cohort_rank"] + k_int_lc)
@@ -1335,7 +1355,8 @@ if uploaded_file_1 and uploaded_file_2:
                     per_client_lc["active_periods"] = 0
                 else:
                     per_client_lc["active_periods"] = per_client_lc["active_periods"].fillna(0).astype(int)
-                per_client_lc["regularity"] = (per_client_lc["active_periods"] / k_int_lc).clip(0, 1).astype(float)
+                denom_lc = per_client_lc["available_periods"].replace(0, 1)
+                per_client_lc["regularity"] = (per_client_lc["active_periods"] / denom_lc).clip(0, 1).astype(float)
                 per_client_lc["cluster"] = "Не покупали"
                 df_fit_lc = per_client_lc[per_client_lc["volume"] > 0].copy()
                 if not df_fit_lc.empty:
