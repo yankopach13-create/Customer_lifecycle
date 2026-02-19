@@ -1733,70 +1733,35 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
                     )
-                    # Блок 1: период + продажи (закрытый серый блок)
-                    lifecycle_box_part1 = (
+                    # Один большой серый блок: период, продажи, цикл жизни клиента
+                    lifecycle_box_html = (
                         lifecycle_box_css
                         + f'<div class="block-result-box">'
                         + f'<span class="block-period-caption">{header_first_line}</span>'
                         + f'<div class="block-divider"></div>'
                         + sales_section_html
-                        + "</div>"
-                    )
-                    # Блок 2: цикл жизни клиента (отдельный серый блок)
-                    lifecycle_box_part2 = (
-                        f'<div class="block-result-box">'
-                        f'<span class="block-block-title">Цикл жизни клиента</span>'
-                        f'<span class="block-section-title">Якорный продукт</span>'
-                        f'<p class="block-p">{p1_anchor_body}</p>'
+                        + f'<div class="block-divider"></div>'
+                        + f'<span class="block-block-title">Цикл жизни клиента</span>'
+                        + f'<span class="block-section-title">Якорный продукт</span>'
+                        + f'<p class="block-p">{p1_anchor_body}</p>'
                     )
                     if p2_analyzable_html:
-                        lifecycle_box_part2 += f'<span class="block-section-title">Анализируемый продукт</span><p class="block-p">{p2_analyzable_html}</p>'
-                    lifecycle_box_part2 += (
+                        lifecycle_box_html += f'<span class="block-section-title">Анализируемый продукт</span><p class="block-p">{p2_analyzable_html}</p>'
+                    lifecycle_box_html += (
                         f'<span class="block-section-title">Исходы к концу периода ({end_period_weeks_str})</span>'
-                        f'<p class="block-p">{p2_outcomes_html}</p>'
+                        + f'<p class="block-p">{p2_outcomes_html}</p>'
                     )
                     if p2_other_popular_html:
-                        lifecycle_box_part2 += f'<span class="block-section-title">Среди прочих категорий</span><p class="block-p">{p2_other_popular_html}</p>'
-                    lifecycle_box_part2 += (
+                        lifecycle_box_html += f'<span class="block-section-title">Среди прочих категорий</span><p class="block-p">{p2_other_popular_html}</p>'
+                    lifecycle_box_html += (
                         f'<span class="block-section-title">Полураспад анализируемого продукта</span>'
-                        f'<p class="block-p">{p3_html}</p>'
+                        + f'<p class="block-p">{p3_html}</p>'
                     )
                     if p4_html:
-                        lifecycle_box_part2 += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
-                    lifecycle_box_part2 += "</div>"
+                        lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
+                    lifecycle_box_html += "</div>"
 
-                    st.markdown(lifecycle_box_part1, unsafe_allow_html=True)
-
-                    # Строка с редактируемым числом между двумя блоками
-                    if q_anchor_lc and q_anchor_lc > 0:
-                        col_s1, col_s2, col_s3 = st.columns([1.8, 0.5, 3])
-                        with col_s1:
-                            st.markdown("При продаже ")
-                        with col_s2:
-                            st.number_input(
-                                "ед.",
-                                min_value=1,
-                                value=n_anchor_lc,
-                                key="lifecycle_anchor_units",
-                                label_visibility="collapsed",
-                            )
-                        with col_s3:
-                            st.markdown(
-                                f" ед. {category_label} в течении {k_periods_lifecycle} {period_word} будет продано "
-                                f"**{expected_int_lc}** ед. {', '.join(selected_categories_lifecycle)}."
-                            )
-
-                    st.markdown(lifecycle_box_part2, unsafe_allow_html=True)
-
-                    # Для Excel — полный текст (оба блока + фраза с числом)
-                    lifecycle_box_html = lifecycle_box_part1
-                    if q_anchor_lc and q_anchor_lc > 0:
-                        lifecycle_box_html += (
-                            f'<p class="block-p">При продаже <span class="block-num">{n_anchor_lc}</span> ед. <span class="block-product">{anchor_esc_lc}</span> в течении '
-                            f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
-                            f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
-                        )
-                    lifecycle_box_html += lifecycle_box_part2
+                    st.markdown(lifecycle_box_html, unsafe_allow_html=True)
 
                     # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
