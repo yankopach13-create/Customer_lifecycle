@@ -154,12 +154,12 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
     b64 = base64.b64encode(excel_bytes).decode("ascii")
     filename_esc = json.dumps(filename)
     html = f"""
-    <div style="width: 100%; margin: 0.75rem 0 0 0;">
+    <div style="width: 100%; margin: 0;">
         <button id="excel_btn_{safe_key}" type="button" style="
             width: 100%;
-            height: 2.75rem;
-            min-height: 2.75rem;
-            padding: 8px 12px;
+            height: 2.375rem;
+            min-height: 2.375rem;
+            padding: 6px 12px;
             background: transparent;
             color: white;
             font-weight: 700;
@@ -194,7 +194,7 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
         }})();
     </script>
     """
-    components.html(html, height=56)
+    components.html(html, height=46)
 
 
 def _norm_client_id(ser: pd.Series) -> pd.Series:
@@ -729,21 +729,16 @@ if uploaded_file_1 and uploaded_file_2:
         # --- Настройка параметров отчёта (применяется ко всем блокам) ---
         st.divider()
         st.subheader("Настройка параметров отчёта")
-        col_report_1, col_report_2, col_report_3 = st.columns([1, 1, 1])
-        with col_report_1:
+        # Первый ряд: С когорты | Анализируемый продукт | Недель/месяцев
+        r1_c1, r1_c2, r1_c3 = st.columns([1, 1, 1])
+        with r1_c1:
             cohort_start_global = st.selectbox(
                 "С когорты",
                 options=cohort_labels,
                 index=0,
                 key="report_cohort_start",
             )
-            cohort_end_global = st.selectbox(
-                "По когорту",
-                options=cohort_labels,
-                index=0,
-                key="report_cohort_end",
-            )
-        with col_report_2:
+        with r1_c2:
             selected_categories_global = st.multiselect(
                 "Анализируемый продукт",
                 options=all_categories,
@@ -751,7 +746,7 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_categories",
                 help="Категории для кластеризации, цикла жизни и расчёта продаж на объём якорного.",
             )
-        with col_report_3:
+        with r1_c3:
             k_periods_global = st.number_input(
                 "Недель/месяцев с покупки якорного (включая период когорты)",
                 min_value=1,
@@ -759,6 +754,18 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="report_k_periods",
             )
+        # Второй ряд: По когорту | пусто | Кнопка скачивания (в одну линию с «По когорту»)
+        r2_c1, r2_c2, r2_c3 = st.columns([1, 1, 1])
+        with r2_c1:
+            cohort_end_global = st.selectbox(
+                "По когорту",
+                options=cohort_labels,
+                index=0,
+                key="report_cohort_end",
+            )
+        with r2_c2:
+            pass
+        with r2_c3:
             excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
             report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
             create_excel_download_button(
