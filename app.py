@@ -7,6 +7,8 @@ import io
 import json
 import re
 import streamlit as st
+from openpyxl.comments import Comment
+from openpyxl.styles import Alignment
 import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
@@ -251,6 +253,13 @@ def _html_to_plain_text(html: str) -> str:
     return text
 
 
+def _strip_css_from_html(html: str) -> str:
+    """Удаляет блок <style>...</style>, чтобы в текст не попадали стили."""
+    if not html:
+        return html
+    return re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
+
+
 def build_excel_report(
     cohort_start: str,
     cohort_end: str,
@@ -258,15 +267,19 @@ def build_excel_report(
     k_periods: int,
     is_months: bool,
     cluster_summary: pd.DataFrame,
+    cluster_comments: dict,
     lifecycle_clusters: list,
     lifecycle_table: pd.DataFrame,
     lifecycle_output_text: str,
 ) -> bytes:
     """
-    Собирает полный отчёт в Excel: лист 1 — параметры и кластерный анализ, лист 2 — цикл жизни (кластеры, таблица, вывод).
+    Собирает полный отчёт в Excel: лист 1 — параметры и кластерный анализ (с примечаниями на кластерах),
+    лист 2 — цикл жизни (кластеры, таблица, вывод в объединённой ячейке с переносом).
+    Метрики в % выводятся в формате процента.
     """
     buffer = io.BytesIO()
     period_word = "месяцев" if is_months else "недель"
+    cluster_comments = cluster_comments or {}
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         # Лист 1: параметры + кластерный анализ
@@ -280,10 +293,15 @@ def build_excel_report(
         params_df = pd.DataFrame(params_rows)
         params_df.to_excel(writer, sheet_name="Параметры и кластеры", index=False, header=False)
 
-        # Кластерный анализ — под параметрами
+        start_row = len(params_rows) + 2
         if cluster_summary is not None and not cluster_summary.empty:
             export_cols = [c for c in ["cluster", "clients", "pct", "total_volume", "pct_volume", "avg_client_per_period", "avg_regularity"] if c in cluster_summary.columns]
-            cluster_export = cluster_summary[export_cols] if export_cols else cluster_summary
+            cluster_export = cluster_summary[export_cols].copy()
+            # Метрики в % — значением в %
+            if "pct" in cluster_export.columns:
+                cluster_export["pct"] = cluster_export["pct"].apply(lambda x: f"{float(x):.1f}%")
+            if "pct_volume" in cluster_export.columns:
+                cluster_export["pct_volume"] = cluster_export["pct_volume"].apply(lambda x: f"{float(x):.1f}%")
             col_names_ru = {
                 "cluster": "Кластер",
                 "clients": "Клиентов",
@@ -294,7 +312,6 @@ def build_excel_report(
                 "avg_regularity": "Регулярность",
             }
             cluster_export = cluster_export.rename(columns=col_names_ru)
-            start_row = len(params_rows) + 2
             cluster_export.to_excel(writer, sheet_name="Параметры и кластеры", index=False, startrow=start_row)
 
         # Лист 2: цикл жизни
@@ -307,17 +324,33 @@ def build_excel_report(
         header_df = pd.DataFrame(header_rows)
         header_df.to_excel(writer, sheet_name=sheet2_name, index=False, header=False)
 
+        table_start = len(header_rows) + 1
         if lifecycle_table is not None and not lifecycle_table.empty:
-            table_start = len(header_rows) + 1
             lifecycle_table.to_excel(writer, sheet_name=sheet2_name, index=False, startrow=table_start)
 
-        # Вывод (текст) — под таблицей
+        out_start_row = table_start + (len(lifecycle_table) + 2 if lifecycle_table is not None and not lifecycle_table.empty else 0)
+
+        # Примечания на ячейках кластеров (лист 1)
+        ws1 = writer.sheets["Параметры и кластеры"]
+        for i, cluster_name in enumerate(cluster_summary["cluster"].tolist() if cluster_summary is not None and not cluster_summary.empty else []):
+            comment_text = cluster_comments.get(cluster_name)
+            if comment_text:
+                cell = ws1.cell(row=start_row + 1 + i, column=1)
+                cell.comment = Comment(comment_text[:32767], "CLF")
+
+        # Вывод на листе Цикл жизни — объединённая ячейка с переносом текста
         if lifecycle_output_text:
-            out_start = len(header_rows) + 1
-            if lifecycle_table is not None and not lifecycle_table.empty:
-                out_start += len(lifecycle_table) + 2
-            out_df = pd.DataFrame([["Вывод"], [lifecycle_output_text]])
-            out_df.to_excel(writer, sheet_name=sheet2_name, index=False, header=False, startrow=out_start)
+            ws2 = writer.sheets[sheet2_name]
+            ws2.cell(row=out_start_row + 1, column=1, value="Вывод")
+            out_text_cell = ws2.cell(row=out_start_row + 2, column=1, value=lifecycle_output_text)
+            out_text_cell.alignment = Alignment(wrap_text=True, vertical="top")
+            merge_rows = max(15, min(80, len(lifecycle_output_text) // 60))
+            ws2.merge_cells(
+                start_row=out_start_row + 2,
+                start_column=1,
+                end_row=out_start_row + 2 + merge_rows,
+                end_column=6,
+            )
 
     buffer.seek(0)
     return buffer.getvalue()
@@ -573,6 +606,7 @@ if uploaded_file_1 and uploaded_file_2:
         df1 = df2 = None
 
     if df1 is not None and df2 is not None and not df1.empty and not df2.empty:
+        had_excel_bytes = "excel_report_bytes" in st.session_state
         categories_from_doc1 = sorted(df1[COL_CATEGORY].dropna().unique().tolist())
         category_label = ", ".join(categories_from_doc1) if categories_from_doc1 else "—"
         st.markdown(f"### Якорный продукт когорт: :violet[{category_label}]")
@@ -659,15 +693,15 @@ if uploaded_file_1 and uploaded_file_2:
                 step=1,
                 key="report_k_periods",
             )
-
-        excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
-        st.download_button(
-            "Скачать полный отчёт в Excel",
-            data=excel_data,
-            file_name="full_report.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_full_report",
-        )
+            excel_data = st.session_state.get("excel_report_bytes") or _placeholder_excel_bytes()
+            report_filename = st.session_state.get("excel_report_filename", "CLF_report.xlsx")
+            st.download_button(
+                "Скачать полный отчёт в Excel",
+                data=excel_data,
+                file_name=report_filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_full_report",
+            )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
         idx_end_c = cohort_labels.index(cohort_end_global)
@@ -930,6 +964,16 @@ if uploaded_file_1 and uploaded_file_2:
                     if name == "Не покупали":
                         return "Нет покупок анализируемого продукта в выбранном окне."
                     return ""
+
+                report_cluster_comments = {}
+                for _, r in summary.iterrows():
+                    cn = r["cluster"]
+                    if cn == "Итого":
+                        continue
+                    desc_text = CLUSTER_8_DESCRIPTIONS.get(cn, "")
+                    crit_text = _criteria_text(cn, v33_val, v67_val, k_int_cluster, is_months)
+                    report_cluster_comments[cn] = desc_text + ("\n\nКритерии: " + crit_text if crit_text else "")
+                st.session_state["report_cluster_comments"] = report_cluster_comments
 
                 cluster_names_list = summary["cluster"].tolist()
                 cluster_options = [c for c in cluster_names_list if c != "Итого"]
@@ -1611,7 +1655,11 @@ if uploaded_file_1 and uploaded_file_2:
 
                     # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
-                    lifecycle_text = _html_to_plain_text(lifecycle_box_html)
+                    cluster_comments_for_excel = st.session_state.get("report_cluster_comments", {})
+                    html_without_css = _strip_css_from_html(lifecycle_box_html)
+                    lifecycle_text = _html_to_plain_text(html_without_css)
+                    safe_filename = "CLF " + re.sub(r'[*\\/:?"<>|]', "_", category_label) + ".xlsx"
+                    st.session_state["excel_report_filename"] = safe_filename
                     try:
                         excel_bytes = build_excel_report(
                             cohort_start=cohort_start_global,
@@ -1620,11 +1668,14 @@ if uploaded_file_1 and uploaded_file_2:
                             k_periods=int(k_periods_global),
                             is_months=is_months,
                             cluster_summary=cluster_summary_for_excel,
+                            cluster_comments=cluster_comments_for_excel,
                             lifecycle_clusters=selected_clusters_lifecycle,
                             lifecycle_table=df_display,
                             lifecycle_output_text=lifecycle_text,
                         )
                         st.session_state["excel_report_bytes"] = excel_bytes
+                        if not had_excel_bytes:
+                            st.rerun()
                     except Exception:
                         st.session_state["excel_report_bytes"] = None
 
