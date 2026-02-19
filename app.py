@@ -701,21 +701,29 @@ if uploaded_file_1 and uploaded_file_2:
                 key="report_categories",
                 help="Категории для кластеризации, цикла жизни и расчёта продаж на объём якорного.",
             )
+        with col_report_3:
+            k_periods_global = st.number_input(
+                "Недель/месяцев с покупки якорного (включая период когорты)",
+                min_value=1,
+                value=5,
+                step=1,
+                key="report_k_periods",
+            )
             st.markdown(
                 """
                 <style>
                 div[data-testid="stDownloadButton"] button {
                     width: 100% !important;
-                    padding: 6px 12px !important;
+                    padding: 8px 12px !important;
                     background: transparent !important;
-                    color: #fff !important;
+                    color: #9333ea !important;
                     border: 2px solid #adb5bd !important;
                     border-radius: 8px !important;
                     font-size: 0.9rem !important;
-                    font-weight: 600 !important;
+                    font-weight: 700 !important;
                     min-height: unset !important;
-                    height: auto !important;
-                    line-height: 1.4 !important;
+                    height: 2.5rem !important;
+                    line-height: 1.25 !important;
                     text-align: center !important;
                     box-shadow: none !important;
                     transition: all 0.2s ease !important;
@@ -735,14 +743,6 @@ if uploaded_file_1 and uploaded_file_2:
                 file_name=report_filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_full_report",
-            )
-        with col_report_3:
-            k_periods_global = st.number_input(
-                "Недель/месяцев с покупки якорного (включая период когорты)",
-                min_value=1,
-                value=5,
-                step=1,
-                key="report_k_periods",
             )
 
         idx_start_c = cohort_labels.index(cohort_start_global)
