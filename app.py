@@ -1229,24 +1229,24 @@ if uploaded_file_1 and uploaded_file_2:
 
         st.caption("Отбор кластеров для статистики по неделям.")
         cluster_options_only = [_cluster_display_name(c) for c in CLUSTER_8_ORDER] + ["Не покупали"]
-        mode_lc = st.radio(
-            "Режим отбора кластеров",
-            options=["Все кластеры", "Выбрать кластеры"],
-            index=0,
-            key="lifecycle_cluster_mode",
-            horizontal=True,
+        cluster_options_with_all = ["Все кластеры"] + cluster_options_only
+        default_lc = st.session_state.get("lifecycle_clusters_selection", ["Все кластеры"])
+        raw_selection = st.multiselect(
+            "Кластеры",
+            options=cluster_options_with_all,
+            default=default_lc,
+            key="lifecycle_clusters_multiselect",
             label_visibility="collapsed",
         )
-        if mode_lc == "Все кластеры":
-            selected_clusters_lifecycle = ["Все кластеры"]
+        # Авто-логика: если выбраны и «Все кластеры», и другие — оставляем только другие
+        if "Все кластеры" in raw_selection and len(raw_selection) > 1:
+            selected_clusters_lifecycle = [x for x in raw_selection if x != "Все кластеры"]
         else:
-            selected_clusters_lifecycle = st.multiselect(
-                "Выберите кластеры",
-                options=cluster_options_only,
-                default=[],
-                key="lifecycle_clusters_multiselect",
-                label_visibility="collapsed",
-            )
+            selected_clusters_lifecycle = raw_selection if raw_selection else ["Все кластеры"]
+        st.session_state["lifecycle_clusters_selection"] = selected_clusters_lifecycle
+        if raw_selection != selected_clusters_lifecycle:
+            st.session_state["lifecycle_clusters_multiselect"] = selected_clusters_lifecycle
+            st.rerun()
 
         if not cohorts_to_use_lc:
             st.caption("Выберите хотя бы одну когорту.")
