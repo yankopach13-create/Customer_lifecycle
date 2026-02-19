@@ -229,14 +229,14 @@ def _lifecycle_cluster_selector_html(
         )
         check_mark = '<span style="color:white;font-size:12px;">✓</span>' if checked else ""
         items_html.append(
-            f'<a href="{href}" style="display:inline-flex;align-items:center;gap:8px;'
+            f'<a href="{href}" target="_top" style="display:inline-flex;align-items:center;gap:8px;'
             f'text-decoration:none;color:rgba(250,250,250,0.95);font-size:0.9rem;'
             f'white-space:nowrap;margin-right:16px;padding:2px 0;cursor:pointer;">'
             f'<span style="{box_style}">{check_mark}</span>'
             f'<span>{opt_esc}</span></a>'
         )
     return (
-        '<div style="display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;'
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;padding-bottom:16px;'
         'font-family:Source Sans Pro, sans-serif;">'
         + "".join(items_html)
         + "</div>"
@@ -1299,7 +1299,7 @@ if uploaded_file_1 and uploaded_file_2:
         html_clusters = _lifecycle_cluster_selector_html(
             cluster_options_display_lc, all_only, selected_list_lc
         )
-        components.html(html_clusters, height=44)
+        components.html(html_clusters, height=92)
 
         if not cohorts_to_use_lc:
             st.caption("Выберите хотя бы одну когорту.")
