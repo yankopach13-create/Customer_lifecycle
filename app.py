@@ -733,7 +733,7 @@ if uploaded_file_1 and uploaded_file_2:
         r1_c1, r1_c2, r1_c3 = st.columns([1, 1, 1])
         with r1_c1:
             cohort_start_global = st.selectbox(
-                "С когорты",
+                "С когорты по когорту",
                 options=cohort_labels,
                 index=0,
                 key="report_cohort_start",
@@ -758,7 +758,7 @@ if uploaded_file_1 and uploaded_file_2:
         r2_c1, r2_c2, r2_c3 = st.columns([1, 1, 1])
         with r2_c1:
             cohort_end_global = st.selectbox(
-                "По когорту",
+                "",
                 options=cohort_labels,
                 index=0,
                 key="report_cohort_end",
