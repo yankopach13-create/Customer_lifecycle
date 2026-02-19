@@ -1466,6 +1466,9 @@ if uploaded_file_1 and uploaded_file_2:
                     for i in range(len(analyzable_list)):
                         agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
                     summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
+                    period_range_caption_lc = format_period_range_for_caption(
+                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
+                    )
 
                     half_life_week = None
                     pct_before_half = None
@@ -1607,6 +1610,9 @@ if uploaded_file_1 and uploaded_file_2:
                     col_headers.extend(["Покупают прочие", "Нет покупок"])
 
                     df_display = pd.DataFrame(table_rows, columns=col_headers)
+                    st.markdown(f"**{period_range_caption_lc}**")
+                    st.divider()
+                    st.subheader("Цикл жизни клиента")
                     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
                     last = summary_by_week.iloc[-1]
@@ -1617,9 +1623,6 @@ if uploaded_file_1 and uploaded_file_2:
                     first_row = summary_by_week.iloc[0]
                     pct_anchor_first = 100 * first_row["bought_anchor"] / N_lc
 
-                    period_range_caption_lc = format_period_range_for_caption(
-                        cohorts_to_use_lc, cohort_ranks, rank_to_period, k_periods_lifecycle, is_months
-                    )
                     period_word_until = "недели" if not is_months else "месяца"
                     period_word_on = "неделе" if not is_months else "месяце"
                     analyzable_names_esc = ", ".join([c.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for c in analyzable_list])
@@ -1727,8 +1730,6 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
                         "</style>"
                         f'<div class="block-result-box">'
-                        f'<span class="block-period-caption">{period_range_caption_lc}</span>'
-                        f'{sales_section_html}'
                         f'<p class="block-p">{p1_intro}</p>'
                         f'<span class="block-section-title">Якорный продукт</span>'
                         f'<p class="block-p">{p1_anchor_body}</p>'
@@ -1749,6 +1750,13 @@ if uploaded_file_1 and uploaded_file_2:
                         lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
                     lifecycle_box_html += "</div>"
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
+
+                    st.divider()
+                    st.subheader("Продажи анализируемого продукта на объём якорного")
+                    st.markdown(
+                        '<div class="block-result-box">' + sales_section_html + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
                     # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
