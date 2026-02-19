@@ -346,6 +346,30 @@ def build_excel_report(
         if cluster_summary is not None and not cluster_summary.empty:
             export_cols = [c for c in ["cluster", "clients", "pct", "total_volume", "pct_volume", "avg_client_per_period", "avg_regularity"] if c in cluster_summary.columns]
             cluster_export = cluster_summary[export_cols].copy()
+            # Присутствие и Регулярность — в том же формате, что и в таблице в программе
+            period_word_plural = "месяцев" if is_months else "недель"
+            days_per_period = 30 if is_months else 7
+            k_int = int(k_periods)
+            window_days = k_int * days_per_period
+
+            def _presence_text(avg_r):
+                if pd.isna(avg_r):
+                    avg_r = 0.0
+                x_per = round(avg_r * k_int, 1)
+                y_pct = round(avg_r * 100, 1)
+                return f"{x_per} {period_word_plural} из {k_int} ({y_pct}%)"
+
+            def _regularity_text(avg_r):
+                if pd.isna(avg_r) or avg_r <= 0.001:
+                    return "Приходят редко или одна покупка"
+                z_days = max(1, round(days_per_period / avg_r))
+                suffix = " (вероятно реже)" if z_days >= window_days else ""
+                return f"В среднем каждые {z_days} дн.{suffix}"
+
+            cluster_export["presence"] = cluster_export["avg_regularity"].apply(_presence_text)
+            cluster_export["regularity"] = cluster_export["avg_regularity"].apply(_regularity_text)
+            cluster_export = cluster_export.drop(columns=["avg_regularity"], errors="ignore")
+
             # Названия кластеров в Excel — как в программе (с отображаемым именем без скобок, кроме «Итого»)
             cluster_export["cluster"] = cluster_export["cluster"].apply(
                 lambda x: "Итого" if x == "Итого" else _cluster_display_name(str(x))
@@ -362,7 +386,8 @@ def build_excel_report(
                 "total_volume": "Объём за период",
                 "pct_volume": "% объёма",
                 "avg_client_per_period": "Средний объём на клиента за период покупки",
-                "avg_regularity": "Регулярность",
+                "presence": "Присутствие",
+                "regularity": "Регулярность",
             }
             cluster_export = cluster_export.rename(columns=col_names_ru)
             cluster_export.to_excel(writer, sheet_name="Параметры и кластеры", index=False, startrow=start_row)
