@@ -160,18 +160,18 @@ def create_excel_download_button(excel_bytes: bytes, filename: str, button_label
             height: 2.5rem;
             min-height: 2.5rem;
             padding: 8px 12px;
-            background: transparent;
-            color: #9333ea;
+            background: #9333ea;
+            color: white;
             font-weight: 700;
             font-size: 0.9rem;
-            border: 2px solid #adb5bd;
+            border: 4px solid #6b21a8;
             border-radius: 8px;
             cursor: pointer;
             text-align: center;
             line-height: 1.25;
             box-sizing: border-box;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        " onmouseover="this.style.borderColor='#6c757d'; this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)';" onmouseout="this.style.borderColor='#adb5bd'; this.style.boxShadow='none';">
+        " onmouseover="this.style.borderColor='#5b1a9a'; this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)';" onmouseout="this.style.borderColor='#6b21a8'; this.style.boxShadow='none';">
             {button_label}
         </button>
     </div>
