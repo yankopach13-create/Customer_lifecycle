@@ -1925,15 +1925,16 @@ if uploaded_file_1 and uploaded_file_2:
                     lifecycle_box_css = (
                         "<style>"
                         ".block-result-box { background: #0d0d0d; border: 1px solid #333; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: #e8e8e8; }"
-                        ".block-result-box .block-period-caption { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; text-align: center; padding: 0.6rem 0.5rem; margin-bottom: 0; display: block; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #e8e8e8; }"
                         ".block-result-box .block-divider { border-top: 1px solid #333; margin: 0.75rem 0; }"
-                        ".block-result-box .block-major-divider { border-top: 2px solid #444; margin: 1.25rem 0; padding-top: 1rem; }"
                         ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: #e8e8e8; display: block; margin-bottom: 0.5rem; padding: 0.5rem 0.6rem; border: 1px solid #333; border-radius: 6px; margin-top: 0; background: #1a1a1a; }"
                         ".block-result-box .block-block-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-sales-block { margin-bottom: 0.5rem; }"
-                        ".block-result-box .block-lifecycle-block { border-top: 2px solid #444; padding-top: 1rem; margin-top: 0.5rem; }"
-                        ".block-result-box .block-section-title { font-style: italic; font-weight: 600; margin-top: 1rem; margin-bottom: 0.35rem; color: #c4b5fd; display: block; font-size: 0.95rem; }"
+                        ".block-result-box .block-lifecycle-block { padding-top: 1rem; margin-top: 0.5rem; }"
+                        ".block-result-box .block-section-title { font-style: italic; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.35rem; color: #c4b5fd; display: block; font-size: 1.1rem; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
+                        ".block-period-above { text-align: center; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; color: #e8e8e8; margin-bottom: 0.5rem; }"
+                        ".block-period-above .block-num { color: #f0a050; font-weight: bold; }"
+                        ".block-period-above .block-product { font-style: italic; color: #e0e0e0; }"
                         ".block-result-box .block-p4-line { margin-bottom: 0.5rem; line-height: 1.45; }"
                         ".block-result-box .block-p4-line:last-child { margin-bottom: 0; }"
                         ".block-result-box .block-num { color: #f0a050; font-weight: bold; }"
@@ -1946,11 +1947,11 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box .block-key-li::before { content: '▸'; position: absolute; left: 0; color: #f0a050; font-weight: bold; }"
                         "</style>"
                     )
-                    # Один большой серый блок: период, продажи, цикл жизни (явно разделены)
+                    # Подпись периода — над ячейкой вывода; затем ячейка без подписи внутри
                     lifecycle_box_html = (
                         lifecycle_box_css
+                        + f'<div class="block-period-above">{header_first_line}</div>'
                         + f'<div class="block-result-box">'
-                        + f'<span class="block-period-caption">{header_first_line}</span>'
                         + f'<div class="block-divider"></div>'
                         + f'<div class="block-sales-block">'
                         + sales_section_html
@@ -1963,8 +1964,7 @@ if uploaded_file_1 and uploaded_file_2:
                         )
                     lifecycle_box_html += "</div>"
                     lifecycle_box_html += (
-                        f'<div class="block-major-divider"></div>'
-                        + f'<div class="block-lifecycle-block">'
+                        f'<div class="block-lifecycle-block">'
                         + f'<span class="block-block-title">Цикл жизни клиента</span>'
                         + f'<span class="block-section-title">Ключевые выводы</span>'
                         + f'<p class="block-p">{key_findings_html}</p>'
