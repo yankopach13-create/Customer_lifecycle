@@ -1920,9 +1920,12 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
                         ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; padding-bottom: 0.4rem; margin-bottom: 0; display: block; }"
                         ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.35); margin: 0.75rem 0; }"
+                        ".block-result-box .block-major-divider { border-top: 2px solid rgba(255,255,255,0.5); margin: 1.25rem 0; padding-top: 1rem; }"
                         ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.98); display: block; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.15); padding: 0.5rem 0.6rem; border-radius: 6px; margin-top: 0; }"
                         ".block-result-box .block-block-title:first-of-type { margin-top: 0; }"
-                        ".block-result-box .block-section-title { font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: rgba(255,255,255,0.95); display: block; font-size: 0.95rem; }"
+                        ".block-result-box .block-sales-block { margin-bottom: 0.5rem; }"
+                        ".block-result-box .block-lifecycle-block { border-top: 2px solid rgba(255,255,255,0.45); padding-top: 1rem; margin-top: 0.5rem; }"
+                        ".block-result-box .block-section-title { font-weight: 700; margin-top: 1rem; margin-bottom: 0.35rem; color: rgba(255,255,255,0.98); display: block; font-size: 0.95rem; border-left: 4px solid #e85d04; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 0 6px 6px 0; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
                         ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
@@ -1934,12 +1937,13 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box .block-key-li::before { content: '▸'; position: absolute; left: 0; color: #e85d04; font-weight: bold; }"
                         "</style>"
                     )
-                    # Один большой серый блок: период, продажи, фраза «При продаже 100 ед. …», цикл жизни клиента
+                    # Один большой серый блок: период, продажи, цикл жизни (явно разделены)
                     lifecycle_box_html = (
                         lifecycle_box_css
                         + f'<div class="block-result-box">'
                         + f'<span class="block-period-caption">{header_first_line}</span>'
                         + f'<div class="block-divider"></div>'
+                        + f'<div class="block-sales-block">'
                         + sales_section_html
                     )
                     if q_anchor_lc and q_anchor_lc > 0:
@@ -1948,8 +1952,10 @@ if uploaded_file_1 and uploaded_file_2:
                             f'<span class="block-num">{k_periods_lifecycle}</span> {period_word} будет продано '
                             f'<span class="block-num">{expected_int_lc}</span> ед. <span class="block-product">{analyzable_esc_lc}</span>.</p>'
                         )
+                    lifecycle_box_html += "</div>"
                     lifecycle_box_html += (
-                        f'<div class="block-divider"></div>'
+                        f'<div class="block-major-divider"></div>'
+                        + f'<div class="block-lifecycle-block">'
                         + f'<span class="block-block-title">Цикл жизни клиента</span>'
                         + f'<span class="block-section-title">Ключевые выводы</span>'
                         + f'<p class="block-p">{key_findings_html}</p>'
@@ -1970,7 +1976,7 @@ if uploaded_file_1 and uploaded_file_2:
                     )
                     if p4_html:
                         lifecycle_box_html += f'<span class="block-section-title">Устойчивый перерыв и уход из анализируемого продукта</span><p class="block-p">{p4_html}</p>'
-                    lifecycle_box_html += "</div>"
+                    lifecycle_box_html += "</div></div>"
 
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
 
