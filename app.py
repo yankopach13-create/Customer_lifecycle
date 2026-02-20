@@ -448,9 +448,9 @@ def build_excel_report(
 
 
 def _placeholder_excel_bytes() -> bytes:
-    """Минимальный валидный xlsx для кнопки, когда полный отчёт ещё не сформирован."""
+    """Минимальный валидный xlsx для кнопки до первого формирования полного отчёта (после загрузки страницы отчёт подставится автоматически)."""
     buf = io.BytesIO()
-    placeholder_df = pd.DataFrame([["Отчёт сформируется после просмотра блоков «Кластерный анализ» и «Цикл жизни» ниже."]])
+    placeholder_df = pd.DataFrame([["Полный отчёт подставится после загрузки страницы. Нажмите «Скачать» ещё раз или обновите страницу."]])
     placeholder_df.to_excel(buf, sheet_name="Инфо", index=False, header=False)
     buf.seek(0)
     return buf.getvalue()
@@ -1989,7 +1989,20 @@ if uploaded_file_1 and uploaded_file_2:
 
                     st.markdown(lifecycle_box_html, unsafe_allow_html=True)
 
-                    # Формируем полный отчёт в Excel для кнопки скачивания в блоке «Настройка параметров отчёта»
+                    # Таблица цикла жизни для Excel (из тех же данных, что и HTML-таблица)
+                    lifecycle_table_rows = []
+                    for t in range(k_int_lc):
+                        period_label = f"{period_unit_single_lc} {t + 1}"
+                        row = [period_label]
+                        for b in BUCKET_ORDER:
+                            cnt = int(bucket_counts_reindexed.loc[t, b]) if t in bucket_counts_reindexed.index else 0
+                            pct = 100 * cnt / N_lc if N_lc else 0
+                            row.append(f"{cnt} ({pct:.1f}%)")
+                        lifecycle_table_rows.append(row)
+                    lifecycle_table_columns = ["Период от когорты"] + [BUCKET_LABELS[b] for b in BUCKET_ORDER]
+                    lifecycle_table_df = pd.DataFrame(lifecycle_table_rows, columns=lifecycle_table_columns)
+
+                    # Формируем полный отчёт в Excel для кнопки скачивания (доступен после первого прохода по блокам)
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
                     cluster_comments_for_excel = st.session_state.get("report_cluster_comments", {})
                     html_without_css = _strip_css_from_html(lifecycle_box_html)
@@ -2006,7 +2019,7 @@ if uploaded_file_1 and uploaded_file_2:
                             cluster_summary=cluster_summary_for_excel,
                             cluster_comments=cluster_comments_for_excel,
                             lifecycle_clusters=selected_clusters_lifecycle,
-                            lifecycle_table=df_display,
+                            lifecycle_table=lifecycle_table_df,
                             lifecycle_output_text=lifecycle_text,
                         )
                         st.session_state["excel_report_bytes"] = excel_bytes
