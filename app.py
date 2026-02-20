@@ -1724,6 +1724,25 @@ if uploaded_file_1 and uploaded_file_2:
                             cells_html.append(f'<td class="lc-td {row_class}{pred_class}">{cnt} ({pct:.1f}%)</td>')
                         tbody_rows.append(f'<tr class="{row_class}">' + "".join(cells_html) + "</tr>")
 
+                    # Пояснение к таблице — над таблицей, построчно
+                    about_table_html = (
+                        '<div class="block-about-table">'
+                        "<strong>О таблице :</strong>"
+                        "<div class=\"block-about-line\">Строки — периоды с начала когорты.</div>"
+                        "<div class=\"block-about-line\">Столбцы — тип покупки в этот период. Каждый клиент попадает ровно в один тип, поэтому по строке сумма = 100%.</div>"
+                        "<div class=\"block-about-line\">Зелёная ячейка — преобладающий тип в этот период.</div>"
+                        "</div>"
+                    )
+                    about_table_css = (
+                        '<style>'
+                        '.block-about-table { background: #1a1a1a; border: 1px solid #333; color: #e8e8e8; '
+                        'padding: 0.6rem 0.75rem; margin: 0.5rem 0 0.35rem 0; font-size: 0.9rem; line-height: 1.5; border-radius: 6px; }'
+                        '.block-about-table .block-about-line { margin-bottom: 0.25rem; }'
+                        '.block-about-table .block-about-line:last-child { margin-bottom: 0; }'
+                        '</style>'
+                    )
+                    st.markdown(about_table_css + about_table_html, unsafe_allow_html=True)
+
                     lc_table_html = (
                         '<div class="lc-table-wrapper">'
                         '<table class="lc-table">'
@@ -1760,20 +1779,6 @@ if uploaded_file_1 and uploaded_file_2:
                     </style>
                     """
                     st.markdown(lc_table_css + lc_table_html, unsafe_allow_html=True)
-
-                    # Пояснение к таблице: как читать, что сумма по строке = 100%, что значит подсветка
-                    about_table_html = (
-                        '<div class="block-about-table">'
-                        "<strong>О таблице выше.</strong> Строки — периоды от когорты (неделя 1, 2, …). "
-                        "Столбцы — тип покупки в этот период; каждый клиент попадает ровно в один тип, поэтому по строке сумма = 100%. "
-                        "Зелёная ячейка — преобладающий тип в этот период."
-                        "</div>"
-                    )
-                    about_table_css = (
-                        '<style>.block-about-table { background: rgba(0,0,0,0.06); border-left: 4px solid #343a40; '
-                        'padding: 0.5rem 0.75rem; margin: 0.5rem 0 0.75rem 0; font-size: 0.9rem; line-height: 1.4; border-radius: 0 6px 6px 0; }</style>'
-                    )
-                    st.markdown(about_table_css + about_table_html, unsafe_allow_html=True)
 
                     last = summary_by_week.iloc[-1]
                     pct_anchor_last = 100 * last["bought_anchor"] / N_lc
@@ -1919,26 +1924,26 @@ if uploaded_file_1 and uploaded_file_2:
 
                     lifecycle_box_css = (
                         "<style>"
-                        ".block-result-box { background: #25282c; border: 1px solid #3d4248; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
-                        ".block-result-box .block-period-caption { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; text-align: center; padding: 0.6rem 0.5rem; margin-bottom: 0; display: block; background: rgba(0,0,0,0.25); border-radius: 6px; }"
-                        ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.25); margin: 0.75rem 0; }"
-                        ".block-result-box .block-major-divider { border-top: 2px solid rgba(255,255,255,0.4); margin: 1.25rem 0; padding-top: 1rem; }"
-                        ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.98); display: block; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.2); padding: 0.5rem 0.6rem; border-radius: 6px; margin-top: 0; }"
+                        ".block-result-box { background: #0d0d0d; border: 1px solid #333; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: #e8e8e8; }"
+                        ".block-result-box .block-period-caption { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; text-align: center; padding: 0.6rem 0.5rem; margin-bottom: 0; display: block; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #e8e8e8; }"
+                        ".block-result-box .block-divider { border-top: 1px solid #333; margin: 0.75rem 0; }"
+                        ".block-result-box .block-major-divider { border-top: 2px solid #444; margin: 1.25rem 0; padding-top: 1rem; }"
+                        ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: #e8e8e8; display: block; margin-bottom: 0.5rem; padding: 0.5rem 0.6rem; border: 1px solid #333; border-radius: 6px; margin-top: 0; background: #1a1a1a; }"
                         ".block-result-box .block-block-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-sales-block { margin-bottom: 0.5rem; }"
-                        ".block-result-box .block-lifecycle-block { border-top: 2px solid rgba(255,255,255,0.4); padding-top: 1rem; margin-top: 0.5rem; }"
-                        ".block-result-box .block-section-title { font-style: italic; font-weight: 600; margin-top: 1rem; margin-bottom: 0.35rem; color: #b19cd9; display: block; font-size: 0.95rem; }"
+                        ".block-result-box .block-lifecycle-block { border-top: 2px solid #444; padding-top: 1rem; margin-top: 0.5rem; }"
+                        ".block-result-box .block-section-title { font-style: italic; font-weight: 600; margin-top: 1rem; margin-bottom: 0.35rem; color: #c4b5fd; display: block; font-size: 0.95rem; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-p4-line { margin-bottom: 0.5rem; line-height: 1.45; }"
                         ".block-result-box .block-p4-line:last-child { margin-bottom: 0; }"
-                        ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
-                        ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
-                        ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
-                        ".block-result-box .block-ul { margin: 0.25rem 0 0.5rem 1.25rem; padding-left: 0.5rem; }"
+                        ".block-result-box .block-num { color: #f0a050; font-weight: bold; }"
+                        ".block-result-box .block-product { font-style: italic; background: rgba(255,255,255,0.08); color: #e0e0e0; padding: 0.1em 0.35em; border-radius: 4px; border: 1px solid #444; }"
+                        ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 0.95rem; line-height: 1.45; color: #e8e8e8; }"
+                        ".block-result-box .block-ul { margin: 0.25rem 0 0.5rem 1.25rem; padding-left: 0.5rem; color: #e8e8e8; }"
                         ".block-result-box .block-ul li { margin-bottom: 0.2rem; }"
                         ".block-result-box .block-key-ul { list-style: none; margin-left: 0; padding-left: 0; }"
-                        ".block-result-box .block-key-li { margin-bottom: 0.5rem; padding-left: 1rem; position: relative; }"
-                        ".block-result-box .block-key-li::before { content: '▸'; position: absolute; left: 0; color: #e85d04; font-weight: bold; }"
+                        ".block-result-box .block-key-li { margin-bottom: 0.5rem; padding-left: 1rem; position: relative; color: #e8e8e8; }"
+                        ".block-result-box .block-key-li::before { content: '▸'; position: absolute; left: 0; color: #f0a050; font-weight: bold; }"
                         "</style>"
                     )
                     # Один большой серый блок: период, продажи, цикл жизни (явно разделены)
