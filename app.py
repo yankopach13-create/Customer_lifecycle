@@ -1870,23 +1870,25 @@ if uploaded_file_1 and uploaded_file_2:
                     period_loc = "неделе" if not is_months else "месяце"
                     period_loc_gen = "недели" if not is_months else "месяца"
                     period_one = "одна неделя" if not is_months else "один месяц"
-                    p4_parts = []
+                    p4_lines = []
                     if analyzable_list:
-                        p4_parts.append(
-                            f'<strong>Типичный перерыв:</strong> медиана между покупками анализируемого продукта — <span class="block-num">{median_gap:.1f}</span> {period_unit_plural}.'
+                        p4_lines.append(
+                            f'<div class="block-p4-line"><strong>Типичный перерыв:</strong> медиана между покупками анализируемого продукта — <span class="block-num">{median_gap:.1f}</span> {period_unit_plural}.</div>'
                         )
                         if n_sustained > 0 and avg_first_sustained_week is not None:
-                            p4_parts.append(
-                                f'<strong>Устойчивый перерыв:</strong> у <span class="block-num">{pct_clients_with_sustained:.1f}%</span> когорты первый перерыв &gt; <span class="block-num">{sustained_threshold}</span> {period_loc_gen}, в среднем с {period_loc} <span class="block-num">{avg_first_sustained_week:.1f}</span>. '
-                                f'В перерыве: <span class="block-num">{pct_in_gap_none:.1f}%</span> — без покупок вообще, <span class="block-num">{pct_in_gap_other:.1f}%</span> — покупали прочие.'
+                            p4_lines.append(
+                                f'<div class="block-p4-line"><strong>Устойчивый перерыв:</strong> у <span class="block-num">{pct_clients_with_sustained:.1f}%</span> когорты первый перерыв &gt; <span class="block-num">{sustained_threshold}</span> {period_loc_gen}, в среднем с {period_loc} <span class="block-num">{avg_first_sustained_week:.1f}</span>.</div>'
+                            )
+                            p4_lines.append(
+                                f'<div class="block-p4-line">В перерыве: <span class="block-num">{pct_in_gap_none:.1f}%</span> — без покупок вообще; <span class="block-num">{pct_in_gap_other:.1f}%</span> — покупали прочие.</div>'
                             )
                         exit_line = f"Полный уход из анализируемого продукта: <span class=\"block-num\">{pct_exited:.1f}%</span> когорты"
                         if avg_last_purchase_week is not None and not np.isnan(avg_last_purchase_week):
                             exit_line += f"; в среднем последняя покупка — {period_loc} <span class=\"block-num\">{avg_last_purchase_week:.1f}</span>."
                         else:
                             exit_line += "."
-                        p4_parts.append(f"<strong>Уход:</strong> {exit_line}")
-                    p4_html = " ".join(p4_parts) if p4_parts else ""
+                        p4_lines.append(f'<div class="block-p4-line"><strong>Уход:</strong> {exit_line}</div>')
+                    p4_html = "".join(p4_lines) if p4_lines else ""
 
                     # Ключевые выводы: преобладающий тип в начале/конце, полураспад, уход, исходы
                     key_items = []
@@ -1917,16 +1919,18 @@ if uploaded_file_1 and uploaded_file_2:
 
                     lifecycle_box_css = (
                         "<style>"
-                        ".block-result-box { background: #343a40; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
-                        ".block-result-box .block-period-caption { font-weight: 600; letter-spacing: 0.02em; padding-bottom: 0.4rem; margin-bottom: 0; display: block; }"
-                        ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.35); margin: 0.75rem 0; }"
-                        ".block-result-box .block-major-divider { border-top: 2px solid rgba(255,255,255,0.5); margin: 1.25rem 0; padding-top: 1rem; }"
-                        ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.98); display: block; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.15); padding: 0.5rem 0.6rem; border-radius: 6px; margin-top: 0; }"
+                        ".block-result-box { background: #25282c; border: 1px solid #3d4248; border-radius: 8px; padding: 1rem 1.25rem; margin: 0.5rem 0; color: white; }"
+                        ".block-result-box .block-period-caption { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; text-align: center; padding: 0.6rem 0.5rem; margin-bottom: 0; display: block; background: rgba(0,0,0,0.25); border-radius: 6px; }"
+                        ".block-result-box .block-divider { border-top: 1px solid rgba(255,255,255,0.25); margin: 0.75rem 0; }"
+                        ".block-result-box .block-major-divider { border-top: 2px solid rgba(255,255,255,0.4); margin: 1.25rem 0; padding-top: 1rem; }"
+                        ".block-result-box .block-block-title { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.98); display: block; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.2); padding: 0.5rem 0.6rem; border-radius: 6px; margin-top: 0; }"
                         ".block-result-box .block-block-title:first-of-type { margin-top: 0; }"
                         ".block-result-box .block-sales-block { margin-bottom: 0.5rem; }"
-                        ".block-result-box .block-lifecycle-block { border-top: 2px solid rgba(255,255,255,0.45); padding-top: 1rem; margin-top: 0.5rem; }"
-                        ".block-result-box .block-section-title { font-weight: 700; margin-top: 1rem; margin-bottom: 0.35rem; color: rgba(255,255,255,0.98); display: block; font-size: 0.95rem; border-left: 4px solid #e85d04; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 0 6px 6px 0; }"
+                        ".block-result-box .block-lifecycle-block { border-top: 2px solid rgba(255,255,255,0.4); padding-top: 1rem; margin-top: 0.5rem; }"
+                        ".block-result-box .block-section-title { font-style: italic; font-weight: 600; margin-top: 1rem; margin-bottom: 0.35rem; color: #b19cd9; display: block; font-size: 0.95rem; }"
                         ".block-result-box .block-section-title:first-of-type { margin-top: 0; }"
+                        ".block-result-box .block-p4-line { margin-bottom: 0.5rem; line-height: 1.45; }"
+                        ".block-result-box .block-p4-line:last-child { margin-bottom: 0; }"
                         ".block-result-box .block-num { color: #e85d04; font-size: 1.25rem; font-weight: bold; }"
                         ".block-result-box .block-product { font-style: italic; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.95); padding: 0.1em 0.35em; border-radius: 4px; }"
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4; }"
