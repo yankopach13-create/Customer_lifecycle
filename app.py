@@ -1711,16 +1711,18 @@ if uploaded_file_1 and uploaded_file_2:
                         thead_cells.append(f'<th class="lc-th">{_esc(BUCKET_LABELS[b])}</th>')
 
                     tbody_rows = []
+                    pastel_row_classes = ["lc-row-0", "lc-row-1", "lc-row-2", "lc-row-3", "lc-row-4", "lc-row-5"]
                     for t in range(k_int_lc):
                         pred_idx = predominant_col_by_t.get(t, -1)
                         period_label = f"{period_unit_single_lc} {t + 1}"
-                        cells_html = [f'<td class="lc-td lc-td-period">{_esc(period_label)}</td>']
+                        row_class = pastel_row_classes[t % len(pastel_row_classes)]
+                        cells_html = [f'<td class="lc-td lc-td-period {row_class}">{_esc(period_label)}</td>']
                         for col_idx, b in enumerate(BUCKET_ORDER):
                             cnt = int(bucket_counts_reindexed.loc[t, b]) if t in bucket_counts_reindexed.index else 0
                             pct = 100 * cnt / N_lc if N_lc else 0
                             pred_class = " lc-predominant" if col_idx == pred_idx else ""
-                            cells_html.append(f'<td class="lc-td{pred_class}">{cnt} ({pct:.1f}%)</td>')
-                        tbody_rows.append("<tr>" + "".join(cells_html) + "</tr>")
+                            cells_html.append(f'<td class="lc-td {row_class}{pred_class}">{cnt} ({pct:.1f}%)</td>')
+                        tbody_rows.append(f'<tr class="{row_class}">' + "".join(cells_html) + "</tr>")
 
                     lc_table_html = (
                         '<div class="lc-table-wrapper">'
@@ -1732,14 +1734,29 @@ if uploaded_file_1 and uploaded_file_2:
 
                     lc_table_css = """
                     <style>
-                    .lc-table-wrapper { overflow-x: auto; margin: 0.5rem 0; max-width: 100%%; }
-                    .lc-table { border-collapse: collapse; min-width: max-content; font-size: 0.9rem; }
-                    .lc-th, .lc-td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: right; white-space: nowrap; }
-                    .lc-th-period, .lc-td-period { position: sticky; left: 0; z-index: 2; background: #f0f2f6; text-align: left; font-weight: 600; }
-                    .lc-th-period { z-index: 3; }
-                    .lc-predominant { background: #b8e0b8; font-weight: 600; }
-                    .lc-table thead .lc-th-period { box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
-                    .lc-table tbody .lc-td-period { box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+                    .lc-table-wrapper { overflow-x: auto; overflow-y: visible; margin: 0.5rem 0; max-width: 100%%; }
+                    .lc-table { border-collapse: collapse; width: 100%%; font-size: 0.8rem; background: #0d0d0d; color: #e8e8e8; table-layout: fixed; }
+                    .lc-table thead { position: sticky; top: 0; z-index: 4; }
+                    .lc-table thead tr { background: #1a1a1a; }
+                    .lc-th, .lc-td { border: 1px solid #333; padding: 0.35rem 0.45rem; text-align: right; }
+                    .lc-th-period, .lc-td-period { position: sticky; left: 0; z-index: 2; text-align: left; font-weight: 600; }
+                    .lc-th-period { z-index: 5; background: #1a1a1a; }
+                    .lc-table tbody .lc-td-period { background: inherit; }
+                    .lc-table thead .lc-th-period { box-shadow: 2px 0 4px rgba(0,0,0,0.3); }
+                    .lc-table tbody .lc-td-period { box-shadow: 2px 0 4px rgba(0,0,0,0.2); }
+                    .lc-row-0 .lc-td:not(.lc-td-period) { background: rgba(255, 218, 224, 0.12); }
+                    .lc-row-0 .lc-td-period { background: rgba(255, 218, 224, 0.18); }
+                    .lc-row-1 .lc-td:not(.lc-td-period) { background: rgba(218, 230, 255, 0.12); }
+                    .lc-row-1 .lc-td-period { background: rgba(218, 230, 255, 0.18); }
+                    .lc-row-2 .lc-td:not(.lc-td-period) { background: rgba(218, 255, 230, 0.12); }
+                    .lc-row-2 .lc-td-period { background: rgba(218, 255, 230, 0.18); }
+                    .lc-row-3 .lc-td:not(.lc-td-period) { background: rgba(255, 236, 218, 0.12); }
+                    .lc-row-3 .lc-td-period { background: rgba(255, 236, 218, 0.18); }
+                    .lc-row-4 .lc-td:not(.lc-td-period) { background: rgba(238, 218, 255, 0.12); }
+                    .lc-row-4 .lc-td-period { background: rgba(238, 218, 255, 0.18); }
+                    .lc-row-5 .lc-td:not(.lc-td-period) { background: rgba(218, 255, 248, 0.12); }
+                    .lc-row-5 .lc-td-period { background: rgba(218, 255, 248, 0.18); }
+                    .lc-predominant { background: rgba(200, 255, 220, 0.35) !important; font-weight: 600; }
                     </style>
                     """
                     st.markdown(lc_table_css + lc_table_html, unsafe_allow_html=True)
