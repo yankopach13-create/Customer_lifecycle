@@ -1952,7 +1952,6 @@ if uploaded_file_1 and uploaded_file_2:
                         lifecycle_box_css
                         + f'<div class="block-period-above">{header_first_line}</div>'
                         + f'<div class="block-result-box">'
-                        + f'<div class="block-divider"></div>'
                         + f'<div class="block-sales-block">'
                         + sales_section_html
                     )
@@ -1964,7 +1963,8 @@ if uploaded_file_1 and uploaded_file_2:
                         )
                     lifecycle_box_html += "</div>"
                     lifecycle_box_html += (
-                        f'<div class="block-lifecycle-block">'
+                        f'<div class="block-divider"></div>'
+                        + f'<div class="block-lifecycle-block">'
                         + f'<span class="block-block-title">Цикл жизни клиента</span>'
                         + f'<span class="block-section-title">Ключевые выводы</span>'
                         + f'<p class="block-p">{key_findings_html}</p>'
