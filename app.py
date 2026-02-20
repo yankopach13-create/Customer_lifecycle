@@ -1504,6 +1504,50 @@ if uploaded_file_1 and uploaded_file_2:
 
                 df_cw = df_cw[df_cw["client_id"].isin(cohort_clients_filtered)]
 
+                # Взаимоисключающий тип покупки (8 категорий, сумма по строке = 100%)
+                def _purchase_bucket(row):
+                    if row["no_purchase"]:
+                        return "no_purchase"
+                    a, an, o = row["bought_anchor"], row["bought_any_analyzable"], row["bought_other"]
+                    if a and an and o:
+                        return "all_three"
+                    if a and an:
+                        return "anchor_analyzable"
+                    if a and o:
+                        return "anchor_other"
+                    if an and o:
+                        return "analyzable_other"
+                    if a:
+                        return "only_anchor"
+                    if an:
+                        return "only_analyzable"
+                    if o:
+                        return "only_other"
+                    return "no_purchase"
+
+                df_cw["purchase_bucket"] = df_cw.apply(_purchase_bucket, axis=1)
+
+                BUCKET_ORDER = [
+                    "only_anchor",
+                    "only_analyzable",
+                    "anchor_analyzable",
+                    "only_other",
+                    "anchor_other",
+                    "analyzable_other",
+                    "all_three",
+                    "no_purchase",
+                ]
+                BUCKET_LABELS = {
+                    "only_anchor": "Только якорный",
+                    "only_analyzable": "Только анализируемый",
+                    "anchor_analyzable": "Якорный и анализируемый",
+                    "only_other": "Только прочие",
+                    "anchor_other": "Якорный и прочие",
+                    "analyzable_other": "Анализируемый и прочие",
+                    "all_three": "Якорный + анализируемый + прочие",
+                    "no_purchase": "Нет покупок",
+                }
+
                 N_lc = len(cohort_clients_filtered)
                 if N_lc == 0:
                     st.warning("В выбранных кластерах нет клиентов. Выберите другие кластеры или когорты.")
@@ -1512,6 +1556,13 @@ if uploaded_file_1 and uploaded_file_2:
                     for i in range(len(analyzable_list)):
                         agg_d[f"bought_a{i}"] = (f"bought_a{i}", "sum")
                     summary_by_week = df_cw.groupby("t").agg(**agg_d).reset_index()
+
+                    # Сводка по (t, purchase_bucket) для HTML-таблицы
+                    bucket_counts = df_cw.groupby(["t", "purchase_bucket"]).size().unstack(fill_value=0)
+                    for b in BUCKET_ORDER:
+                        if b not in bucket_counts.columns:
+                            bucket_counts[b] = 0
+                    bucket_counts = bucket_counts.reindex(columns=BUCKET_ORDER).fillna(0).astype(int)
 
                     half_life_week = None
                     pct_before_half = None
@@ -1637,23 +1688,61 @@ if uploaded_file_1 and uploaded_file_2:
                         n_last_word = "неделю" if n_last_weeks == 1 else ("недели" if n_last_weeks <= 4 else "недель")
                     end_period_weeks_str = f"{period_unit_single} {t_end_from}–{t_end_to}" if n_last_weeks > 1 else f"{period_unit_single} {t_end_to}"
 
-                    table_rows = []
-                    for _, row in summary_by_week.iterrows():
-                        t = int(row["t"])
-                        cells = [str(t)]
-                        cells.append(f"{int(row['bought_anchor'])} ({100 * row['bought_anchor'] / N_lc:.1f}%)")
-                        for i in range(len(analyzable_list)):
-                            cells.append(f"{int(row[f'bought_a{i}'])} ({100 * row[f'bought_a{i}'] / N_lc:.1f}%)")
-                        cells.append(f"{int(row['bought_other'])} ({100 * row['bought_other'] / N_lc:.1f}%)")
-                        cells.append(f"{int(row['no_purchase'])} ({100 * row['no_purchase'] / N_lc:.1f}%)")
-                        table_rows.append(cells)
+                    # HTML-таблица: типы покупки (сумма по строке = 100%), первый столбец фиксирован, подсветка преобладающего типа
+                    period_unit_single_lc = "неделя" if not is_months else "месяц"
+                    bucket_counts_reindexed = bucket_counts.reindex(range(k_int_lc)).fillna(0).astype(int)
 
-                    col_headers = ["Неделя/месяц от когорты", "Покупают якорный"]
-                    col_headers.extend([f"Покупают {c}" for c in analyzable_list])
-                    col_headers.extend(["Покупают прочие", "Нет покупок"])
+                    def _esc(s):
+                        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-                    df_display = pd.DataFrame(table_rows, columns=col_headers)
-                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    predominant_col_by_t = {}
+                    for t in range(k_int_lc):
+                        if t not in bucket_counts_reindexed.index:
+                            predominant_col_by_t[t] = -1
+                            continue
+                        row_vals = bucket_counts_reindexed.loc[t, BUCKET_ORDER].values
+                        max_idx = int(np.argmax(row_vals))
+                        predominant_col_by_t[t] = max_idx
+
+                    thead_cells = [
+                        f'<th class="lc-th lc-th-period">{_esc("Период от когорты⬇/Тип покупки⮕")}</th>'
+                    ]
+                    for b in BUCKET_ORDER:
+                        thead_cells.append(f'<th class="lc-th">{_esc(BUCKET_LABELS[b])}</th>')
+
+                    tbody_rows = []
+                    for t in range(k_int_lc):
+                        pred_idx = predominant_col_by_t.get(t, -1)
+                        period_label = f"{period_unit_single_lc} {t + 1}"
+                        cells_html = [f'<td class="lc-td lc-td-period">{_esc(period_label)}</td>']
+                        for col_idx, b in enumerate(BUCKET_ORDER):
+                            cnt = int(bucket_counts_reindexed.loc[t, b]) if t in bucket_counts_reindexed.index else 0
+                            pct = 100 * cnt / N_lc if N_lc else 0
+                            pred_class = " lc-predominant" if col_idx == pred_idx else ""
+                            cells_html.append(f'<td class="lc-td{pred_class}">{cnt} ({pct:.1f}%)</td>')
+                        tbody_rows.append("<tr>" + "".join(cells_html) + "</tr>")
+
+                    lc_table_html = (
+                        '<div class="lc-table-wrapper">'
+                        '<table class="lc-table">'
+                        "<thead><tr>" + "".join(thead_cells) + "</tr></thead>"
+                        "<tbody>" + "".join(tbody_rows) + "</tbody>"
+                        "</table></div>"
+                    )
+
+                    lc_table_css = """
+                    <style>
+                    .lc-table-wrapper { overflow-x: auto; margin: 0.5rem 0; max-width: 100%%; }
+                    .lc-table { border-collapse: collapse; min-width: max-content; font-size: 0.9rem; }
+                    .lc-th, .lc-td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: right; white-space: nowrap; }
+                    .lc-th-period, .lc-td-period { position: sticky; left: 0; z-index: 2; background: #f0f2f6; text-align: left; font-weight: 600; }
+                    .lc-th-period { z-index: 3; }
+                    .lc-predominant { background: #b8e0b8; font-weight: 600; }
+                    .lc-table thead .lc-th-period { box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+                    .lc-table tbody .lc-td-period { box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+                    </style>
+                    """
+                    st.markdown(lc_table_css + lc_table_html, unsafe_allow_html=True)
 
                     last = summary_by_week.iloc[-1]
                     pct_anchor_last = 100 * last["bought_anchor"] / N_lc
