@@ -710,8 +710,10 @@ if uploaded_file_1 and uploaded_file_2:
         period_rank_to_short = dict(zip(period_order["period_rank"], period_labels_short))
         categories_from_doc2 = sorted(df2[COL_CATEGORY].dropna().unique().tolist())
         categories_from_doc1_set = set(categories_from_doc1)
-        # В списке категорий: сначала из документа 1 (анализируемая), потом из документа 2 (другие)
+        # Все категории (док 1 + док 2) — для расчёта «прочих» в блоке цикла жизни
         all_categories = categories_from_doc1 + [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
+        # Список только из документа 2 — якорный продукт (документ 1) нельзя выбирать как анализируемый
+        analyzable_product_options = [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
         # Когорты с подписью вида "2025/01 (N клиентов)"
         cohort_options = []
         for r in sorted(rank_to_period.index):
@@ -786,10 +788,10 @@ if uploaded_file_1 and uploaded_file_2:
         with r1_c2:
             selected_categories_global = st.multiselect(
                 "Анализируемый продукт",
-                options=all_categories,
+                options=analyzable_product_options,
                 default=[],
                 key="report_categories",
-                help="Категории для кластеризации, цикла жизни и расчёта продаж на объём якорного.",
+                help="Категории из документа 2 для кластеризации, цикла жизни и расчёта продаж на объём якорного. Якорный продукт (документ 1) в списке не отображается.",
             )
         with r1_c3:
             k_periods_global = st.number_input(
