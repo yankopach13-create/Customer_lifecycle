@@ -1046,7 +1046,7 @@ if uploaded_file_1 and uploaded_file_2:
                 st.session_state["report_cluster_summary"] = summary.copy()
 
                 col_cluster = "Кластер"
-                col_volume = "Объём продукта за период"
+                col_volume = "Объём анализируемого продукта за период"
                 col_pct_volume = "% объёма"
                 col_avg_client = f"Средний объём на клиента в {period_unit} покупки"
                 period_word_plural = "месяцев" if is_months else "недель"
