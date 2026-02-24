@@ -714,13 +714,24 @@ if uploaded_file_1 and uploaded_file_2:
         all_categories = categories_from_doc1 + [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
         # Список только из документа 2 — якорный продукт (документ 1) нельзя выбирать как анализируемый
         analyzable_product_options = [c for c in categories_from_doc2 if c not in categories_from_doc1_set]
-        # Когорты с подписью вида "2025/01 (N клиентов)"
+        # Когорта клиента = первая покупка якорного (док 1). Размер когорты = число клиентов с первой покупкой в этом периоде.
+        df1_for_cohort = df1.copy()
+        df1_for_cohort[COL_PERIOD_MAIN] = df1_for_cohort[COL_PERIOD_MAIN].astype(str).str.strip()
+        df1_for_cohort[COL_PERIOD_SUB] = df1_for_cohort[COL_PERIOD_SUB].astype(str).str.strip()
+        df1_for_cohort = df1_for_cohort.merge(
+            period_order[[COL_PERIOD_MAIN, COL_PERIOD_SUB, "period_rank"]],
+            on=[COL_PERIOD_MAIN, COL_PERIOD_SUB],
+            how="left",
+        )
+        df1_for_cohort["_client_norm"] = _norm_client_id(df1_for_cohort[COL_CLIENT])
+        client_first_rank = df1_for_cohort.groupby("_client_norm")["period_rank"].min()
+        # Когорты с подписью вида "2025/01 (N клиентов)" — N = размер когорты (первая покупка в этом периоде)
         cohort_options = []
         for r in sorted(rank_to_period.index):
             row = rank_to_period.loc[r]
             pm, ps = str(row[COL_PERIOD_MAIN]).strip(), str(row[COL_PERIOD_SUB]).strip()
             short = period_labels_short[r] if r < len(period_labels_short) else f"{pm} {ps}"
-            n_clients = df1[(df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm) & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)][COL_CLIENT].nunique()
+            n_clients = (client_first_rank == r).sum()
             label = f"{short} ({n_clients} клиентов)"
             cohort_options.append((r, label))
         cohort_labels = [lb for _, lb in cohort_options]
@@ -836,20 +847,12 @@ if uploaded_file_1 and uploaded_file_2:
         elif not selected_categories_cluster:
             st.warning("Выберите анализируемый продукт для кластеризации.")
         else:
-            # Клиенты выбранных когорт (нормализованный id): определяются по документу 1 (якорный продукт когорт)
-            cohort_clients_c = set()
-            for lb in cohorts_to_use_c:
-                r = cohort_ranks[lb]
-                pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
-                pm, ps = str(pm).strip(), str(ps).strip()
-                clients_r = df1[
-                    (df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm)
-                    & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)
-                ][COL_CLIENT]
-                cohort_clients_c.update(_norm_client_id(clients_r).tolist())
+            # Клиенты, чья первая покупка якорного (док 1) попадает в выбранный диапазон когорт
+            selected_ranks_c = {cohort_ranks[lb] for lb in cohorts_to_use_c}
+            cohort_clients_c = set(client_first_rank.index[client_first_rank.isin(selected_ranks_c)].tolist())
 
             if not cohort_clients_c:
-                st.info("В выбранных когортах нет клиентов (по документу 1).")
+                st.info("В выбранных когортах нет клиентов (по первой покупке якорного продукта).")
             else:
                 max_rank = int(period_order["period_rank"].max())
                 k_int = int(k_periods_cluster)
@@ -1292,19 +1295,12 @@ if uploaded_file_1 and uploaded_file_2:
         elif not selected_categories_lifecycle:
             st.warning("Выберите хотя бы один анализируемый продукт.")
         else:
-            cohort_clients_lc = set()
-            for lb in cohorts_to_use_lc:
-                r = cohort_ranks[lb]
-                pm, ps = rank_to_period.loc[r, COL_PERIOD_MAIN], rank_to_period.loc[r, COL_PERIOD_SUB]
-                pm, ps = str(pm).strip(), str(ps).strip()
-                clients_r = df1[
-                    (df1[COL_PERIOD_MAIN].astype(str).str.strip() == pm)
-                    & (df1[COL_PERIOD_SUB].astype(str).str.strip() == ps)
-                ][COL_CLIENT]
-                cohort_clients_lc.update(_norm_client_id(clients_r).tolist())
+            # Клиенты, чья первая покупка якорного (док 1) попадает в выбранный диапазон когорт
+            selected_ranks_lc = {cohort_ranks[lb] for lb in cohorts_to_use_lc}
+            cohort_clients_lc = set(client_first_rank.index[client_first_rank.isin(selected_ranks_lc)].tolist())
 
             if not cohort_clients_lc:
-                st.info("В выбранных когортах нет клиентов (по документу 1).")
+                st.info("В выбранных когортах нет клиентов (по первой покупке якорного продукта).")
             else:
                 df1_cr_lc = df1_with_period.copy()
                 df1_cr_lc["_client_norm"] = _norm_client_id(df1_cr_lc[COL_CLIENT])
