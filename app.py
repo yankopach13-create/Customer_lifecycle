@@ -1898,7 +1898,9 @@ if uploaded_file_1 and uploaded_file_2:
                     ):
                         half_life_divs.append(f'<div class="block-p4-line">{line}</div>')
                     if len(analyzable_list) > 1:
+                        half_life_spacer = '<div class="block-p4-line block-spacer"></div>'
                         for hp in half_life_per_product:
+                            half_life_divs.append(half_life_spacer)
                             cat_esc = hp["name"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                             fallback_cat = f"На всём периоде более половины когорты покупают <span class=\"block-product\">{cat_esc}</span>."
                             for line in _one_half_life_lines(
@@ -1957,7 +1959,9 @@ if uploaded_file_1 and uploaded_file_2:
                             f'<div class="block-p4-line">К концу на <span class="block-num">{week_end}</span> {period_loc_single} — <span class="block-num">{pct_analyzable_end_overall:.1f}%</span> клиентов когорты.</div>'
                         )
                         if len(analyzable_list) > 1:
+                            spacer_line = '<div class="block-p4-line block-spacer"></div>'
                             for i, cat in enumerate(analyzable_list):
+                                p2_analyzable_lines.append(spacer_line)
                                 cat_esc = cat.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                                 rows_0 = summary_by_week[summary_by_week["t"] == 0]
                                 rows_mid = summary_by_week[summary_by_week["t"] == t_mid]
@@ -2066,6 +2070,7 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-period-above .block-product { font-style: italic; color: #e0e0e0; }"
                         ".block-result-box .block-p4-line { margin-bottom: 0.5rem; line-height: 1.45; }"
                         ".block-result-box .block-p4-line:last-child { margin-bottom: 0; }"
+                        ".block-result-box .block-p4-line.block-spacer { height: 1.45em; margin-bottom: 0.5rem; min-height: 1px; }"
                         ".block-result-box .block-num { color: #f0a050; font-weight: bold; }"
                         ".block-result-box .block-product { font-style: italic; background: rgba(255,255,255,0.08); color: #e0e0e0; padding: 0.1em 0.35em; border-radius: 4px; border: 1px solid #444; }"
                         ".block-result-box p.block-p, .block-result-box div.block-p { margin: 0 0 0.5rem 0; font-size: 0.95rem; line-height: 1.45; color: #e8e8e8; }"
