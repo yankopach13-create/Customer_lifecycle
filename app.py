@@ -1585,6 +1585,35 @@ if uploaded_file_1 and uploaded_file_2:
                             pct_at_10 = pct
                         if half_life_50_t is not None and half_life_30_t is not None and half_life_10_t is not None:
                             break
+                    half_life_per_product = []
+                    for i in range(len(analyzable_list)):
+                        hi_50, hi_30, hi_10 = None, None, None
+                        pa_50, pa_30, pa_10 = None, None, None
+                        pb_50 = None
+                        for _, r in summary_by_week.iterrows():
+                            pct = 100 * r[f"bought_a{i}"] / N_lc if N_lc else 0
+                            t = int(r["t"])
+                            if hi_50 is None and pct < 50:
+                                hi_50 = t
+                                pa_50 = pct
+                                row_b = summary_by_week[summary_by_week["t"] == t - 1]
+                                pb_50 = 100 * row_b.iloc[0][f"bought_a{i}"] / N_lc if t > 0 and not row_b.empty else None
+                            if hi_30 is None and pct < 30:
+                                hi_30 = t
+                                pa_30 = pct
+                            if hi_10 is None and pct < 10:
+                                hi_10 = t
+                                pa_10 = pct
+                        half_life_per_product.append({
+                            "name": analyzable_list[i],
+                            "w50": (hi_50 + 1) if hi_50 is not None else None,
+                            "pct_bef50": pb_50,
+                            "pct_at_50": pa_50,
+                            "w30": (hi_30 + 1) if hi_30 is not None else None,
+                            "pct_at_30": pa_30,
+                            "w10": (hi_10 + 1) if hi_10 is not None else None,
+                            "pct_at_10": pa_10,
+                        })
                     df_cw_sorted = df_cw.sort_values(["client_id", "t"])
                     first_miss = df_cw_sorted[df_cw_sorted["bought_any_analyzable"] == False].groupby("client_id")["t"].min().reset_index().rename(columns={"t": "first_miss"})
                     clients_all = df_cw_sorted["client_id"].unique()
@@ -1660,6 +1689,12 @@ if uploaded_file_1 and uploaded_file_2:
                     exited_clients = consec.loc[exited_mask]["client_id"].tolist()
                     pct_exited = 100 * len(exited_clients) / N_lc if N_lc else 0
                     avg_last_purchase_week = last_pw.loc[exited_mask].dropna().mean() if exited_mask.any() else None
+                    last_anchor_week = df_cw[df_cw["bought_anchor"]].groupby("client_id")["t"].max()
+                    last_anchor_pw = last_anchor_week.reindex(consec["client_id"].values)
+                    last_anchor_pw.index = consec.index
+                    exited_anchor_mask = (last_anchor_pw < k_int_lc - 1) | last_anchor_pw.isna()
+                    pct_exited_anchor = 100 * exited_anchor_mask.sum() / N_lc if N_lc else 0.0
+                    avg_last_anchor_week = last_anchor_pw.loc[exited_anchor_mask].dropna().mean() if exited_anchor_mask.any() else None
 
                     t_mid = (k_int_lc - 1) // 2
                     mid_rows = summary_by_week[summary_by_week["t"] == t_mid]
@@ -1824,29 +1859,41 @@ if uploaded_file_1 and uploaded_file_2:
                     period_word_until = "недели" if not is_months else "месяца"
                     period_word_on = "неделе" if not is_months else "месяце"
                     analyzable_names_esc = ", ".join([c.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for c in analyzable_list])
+                    def _one_half_life_paragraph(names_esc, w50, pct_bef50, pct_at_50, w30, pct_at_30, w10, pct_at_10, fallback_text):
+                        parts = []
+                        if w50 is not None:
+                            pct_bef = f"{pct_bef50:.1f}%" if pct_bef50 is not None else "—"
+                            if w50 > 1:
+                                parts.append(
+                                    f"Доля покупающих анализируемые продукты (<span class=\"block-product\">{names_esc}</span>) падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{w50}</span> "
+                                    f"(на {period_word_on} <span class=\"block-num\">{w50 - 1}</span> — <span class=\"block-num\">{pct_bef}</span>, на {period_word_on} <span class=\"block-num\">{w50}</span> — <span class=\"block-num\">{pct_at_50:.1f}%</span>)."
+                                )
+                            else:
+                                parts.append(
+                                    f"Доля покупающих анализируемые продукты (<span class=\"block-product\">{names_esc}</span>) падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">1</span> (на {period_word_on} <span class=\"block-num\">1</span> — <span class=\"block-num\">{pct_at_50:.1f}%</span>)."
+                                )
+                        if w30 is not None and pct_at_30 is not None:
+                            parts.append(f"Ниже 30% — с {period_word_until} <span class=\"block-num\">{w30}</span> (<span class=\"block-num\">{pct_at_30:.1f}%</span>).")
+                        if w10 is not None and pct_at_10 is not None:
+                            parts.append(f"Ниже 10% — с {period_word_until} <span class=\"block-num\">{w10}</span> (<span class=\"block-num\">{pct_at_10:.1f}%</span>).")
+                        return " ".join(parts) if parts else fallback_text
                     half_life_parts = []
-                    if half_life_50_t is not None:
-                        w50 = half_life_50_t + 1
-                        pct_bef50 = f"{pct_before_50:.1f}%" if pct_before_50 is not None else "—"
-                        if w50 > 1:
-                            half_life_parts.append(
-                                f"Доля покупающих любой из анализируемых продуктов (<span class=\"block-product\">{analyzable_names_esc}</span>) падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">{w50}</span> "
-                                f"(на {period_word_on} <span class=\"block-num\">{w50 - 1}</span> — <span class=\"block-num\">{pct_bef50}</span>, на {period_word_on} <span class=\"block-num\">{w50}</span> — <span class=\"block-num\">{pct_at_50:.1f}%</span>)."
+                    fallback_overall = f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают хотя бы один из анализируемых продуктов (<span class=\"block-product\">{analyzable_names_esc}</span>)."
+                    w50 = (half_life_50_t + 1) if half_life_50_t is not None else None
+                    w30 = (half_life_30_t + 1) if half_life_30_t is not None else None
+                    w10 = (half_life_10_t + 1) if half_life_10_t is not None else None
+                    half_life_text = _one_half_life_paragraph(
+                        analyzable_names_esc, w50, pct_before_50, pct_at_50, w30, pct_at_30, w10, pct_at_10, fallback_overall
+                    )
+                    if len(analyzable_list) > 1:
+                        for hp in half_life_per_product:
+                            cat_esc = hp["name"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                            fallback_cat = f"На всём периоде более половины когорты покупают <span class=\"block-product\">{cat_esc}</span>."
+                            para = _one_half_life_paragraph(
+                                cat_esc, hp["w50"], hp["pct_bef50"], hp["pct_at_50"],
+                                hp["w30"], hp["pct_at_30"], hp["w10"], hp["pct_at_10"], fallback_cat
                             )
-                        else:
-                            half_life_parts.append(
-                                f"Доля покупающих любой из анализируемых продуктов (<span class=\"block-product\">{analyzable_names_esc}</span>) падает ниже 50% начиная с {period_word_until} <span class=\"block-num\">1</span> (на {period_word_on} <span class=\"block-num\">1</span> — <span class=\"block-num\">{pct_at_50:.1f}%</span>)."
-                            )
-                    if half_life_30_t is not None and pct_at_30 is not None:
-                        w30 = half_life_30_t + 1
-                        half_life_parts.append(f"Ниже 30% — с {period_word_until} <span class=\"block-num\">{w30}</span> (<span class=\"block-num\">{pct_at_30:.1f}%</span>).")
-                    if half_life_10_t is not None and pct_at_10 is not None:
-                        w10 = half_life_10_t + 1
-                        half_life_parts.append(f"Ниже 10% — с {period_word_until} <span class=\"block-num\">{w10}</span> (<span class=\"block-num\">{pct_at_10:.1f}%</span>).")
-                    if half_life_parts:
-                        half_life_text = " ".join(half_life_parts)
-                    else:
-                        half_life_text = f"На всём периоде (<span class=\"block-num\">{k_int_lc}</span> {period_unit_plural}) более половины когорты покупают хотя бы один из анализируемых продуктов (<span class=\"block-product\">{analyzable_names_esc}</span>)."
+                            half_life_text += " " + para
 
                     anchor_name_esc = category_label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     week_1 = 1
@@ -1879,29 +1926,22 @@ if uploaded_file_1 and uploaded_file_2:
                     p2_analyzable_parts = []
                     if analyzable_list:
                         pct_analyzable_end_overall = 100 * last["bought_any_analyzable"] / N_lc
-                        first_period_phrase = "на первой неделе" if not is_months else "на 1 месяца"
+                        first_period_phrase = "На первой неделе" if not is_months else "На 1 месяца"
                         period_loc_single = "неделе" if not is_months else "месяце"
+                        products_label = ", ".join([c.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for c in analyzable_list])
                         p2_analyzable_parts.append(
-                            f"Доля от когорты присутствует в анализируемых товарах: {first_period_phrase} — <span class=\"block-num\">{pct_analyzable_first:.1f}%</span>"
+                            f"Доля от когорты присутствует в анализируемых товарах (<span class=\"block-product\">{products_label}</span>). "
+                            f"{first_period_phrase} — <span class=\"block-num\">{pct_analyzable_first:.1f}%</span> клиентов когорты"
                         )
                         if pct_analyzable_weeks_2_3 is not None:
                             p2_analyzable_parts.append(
-                                f"→ Недели 2–3: <span class=\"block-num\">{pct_analyzable_weeks_2_3:.1f}%</span>. "
+                                f" → Недели 2–3: <span class=\"block-num\">{pct_analyzable_weeks_2_3:.1f}%</span>"
                             )
                         p2_analyzable_parts.append(
-                            f"Середина — <span class=\"block-num\">{pct_analyzable_mid:.1f}%</span> клиентов когорты на {period_loc_single} <span class=\"block-num\">{week_mid}</span>. "
+                            f" → В середине периода на <span class=\"block-num\">{week_mid}</span> {period_loc_single} — <span class=\"block-num\">{pct_analyzable_mid:.1f}%</span>"
                         )
                         p2_analyzable_parts.append(
-                            f"К концу на последней {period_loc_single} анализируемого периода — <span class=\"block-num\">{pct_analyzable_end_overall:.1f}%</span> клиентов когорты. "
-                        )
-                        p2_analyzable_parts.append(
-                            f"К концу периода ({period_unit_single} <span class=\"block-num\">{week_end}</span>): "
-                            + "<ul class=\"block-ul\">"
-                            + "".join([
-                                f"<li><span class=\"block-product\">{c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</span> — <span class=\"block-num\">{pct_analyzable_last[i]:.1f}%</span></li>"
-                                for i, c in enumerate(analyzable_list)
-                            ])
-                            + "</ul>"
+                            f" → К концу на <span class=\"block-num\">{week_end}</span> {period_loc_single} — <span class=\"block-num\">{pct_analyzable_end_overall:.1f}%</span> клиентов когорты. "
                         )
                         if len(analyzable_list) > 1:
                             for i, cat in enumerate(analyzable_list):
@@ -1915,11 +1955,20 @@ if uploaded_file_1 and uploaded_file_2:
                                 pct_end_cat = 100 * last[f"bought_a{i}"] / N_lc
                                 df_23_cat = df_cw[(df_cw["t"].isin([1, 2])) & (df_cw[f"bought_a{i}"])] if k_int_lc >= 3 else pd.DataFrame()
                                 pct_23_cat = 100 * df_23_cat["client_id"].nunique() / N_lc if not df_23_cat.empty and N_lc else None
-                                p2_analyzable_parts.append(f"<span class=\"block-product\">{cat_esc}</span>: {first_period_phrase} — <span class=\"block-num\">{pct_first_cat:.1f}%</span>. ")
+                                p2_analyzable_parts.append(
+                                    f"Доля от когорты присутствует в анализируемых товарах (<span class=\"block-product\">{cat_esc}</span>). "
+                                    f"{first_period_phrase} — <span class=\"block-num\">{pct_first_cat:.1f}%</span> клиентов когорты"
+                                )
                                 if pct_23_cat is not None:
-                                    p2_analyzable_parts.append(f"Недели 2–3: <span class=\"block-num\">{pct_23_cat:.1f}%</span>. Середина — <span class=\"block-num\">{pct_mid_cat:.1f}%</span> на {period_loc_single} <span class=\"block-num\">{week_mid}</span>. К концу — <span class=\"block-num\">{pct_end_cat:.1f}%</span>. ")
-                                else:
-                                    p2_analyzable_parts.append(f"Середина — <span class=\"block-num\">{pct_mid_cat:.1f}%</span> на {period_loc_single} <span class=\"block-num\">{week_mid}</span>. К концу — <span class=\"block-num\">{pct_end_cat:.1f}%</span>. ")
+                                    p2_analyzable_parts.append(
+                                        f" → Недели 2–3: <span class=\"block-num\">{pct_23_cat:.1f}%</span>"
+                                    )
+                                p2_analyzable_parts.append(
+                                    f" → В середине периода на <span class=\"block-num\">{week_mid}</span> {period_loc_single} — <span class=\"block-num\">{pct_mid_cat:.1f}%</span>"
+                                )
+                                p2_analyzable_parts.append(
+                                    f" → К концу на <span class=\"block-num\">{week_end}</span> {period_loc_single} — <span class=\"block-num\">{pct_end_cat:.1f}%</span> клиентов когорты. "
+                                )
                     p2_analyzable_html = " ".join(p2_analyzable_parts) if p2_analyzable_parts else ""
                     p2_outcomes_html = (
                         f"За последние <span class=\"block-num\">{n_last_weeks}</span> {n_last_word} ({end_period_weeks_str}): "
@@ -1950,7 +1999,7 @@ if uploaded_file_1 and uploaded_file_2:
                         if n_sustained > 0 and avg_first_sustained_week is not None:
                             avg_first_sustained_week_1based = avg_first_sustained_week + 1
                             p4_lines.append(
-                                f'<div class="block-p4-line"><strong>Устойчивый перерыв:</strong> у <span class="block-num">{pct_clients_with_sustained:.1f}%</span> когорты первый перерыв больше, чем <span class="block-num">{sustained_threshold}</span> {period_loc_gen}, в среднем с {period_loc} <span class="block-num">{avg_first_sustained_week_1based:.1f}</span>.</div>'
+                                f'<div class="block-p4-line">У <span class="block-num">{pct_clients_with_sustained:.1f}%</span> клиентов когорты первый перерыв больше, чем <span class="block-num">{sustained_threshold}</span> {period_loc_gen}, в среднем с {period_loc_gen} <span class="block-num">{avg_first_sustained_week_1based:.1f}</span>.</div>'
                             )
                             gap_other_top3 = "".join([
                                 f'<li><span class="block-product">{c.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span> — <span class="block-num">{pct:.1f}%</span> когорты</li>'
@@ -1961,41 +2010,22 @@ if uploaded_file_1 and uploaded_file_2:
                             )
                             if gap_other_top3:
                                 p4_lines.append(f'<div class="block-p4-line">Топ-3 прочих в перерыве: <ul class="block-ul">{gap_other_top3}</ul></div>')
+                        exit_anchor_line = f"Полный уход из якорного продукта: <span class=\"block-num\">{pct_exited_anchor:.1f}%</span> когорты"
+                        if avg_last_anchor_week is not None and not np.isnan(avg_last_anchor_week):
+                            avg_last_anchor_1based = avg_last_anchor_week + 1
+                            exit_anchor_line += f"; в среднем последняя покупка — на {period_loc} <span class=\"block-num\">{avg_last_anchor_1based:.1f}</span>."
+                        else:
+                            exit_anchor_line += "."
                         exit_line = f"Полный уход из анализируемого продукта: <span class=\"block-num\">{pct_exited:.1f}%</span> когорты"
                         if avg_last_purchase_week is not None and not np.isnan(avg_last_purchase_week):
                             avg_last_week_1based = avg_last_purchase_week + 1
                             exit_line += f"; в среднем последняя покупка — на {period_loc} <span class=\"block-num\">{avg_last_week_1based:.1f}</span>."
                         else:
                             exit_line += "."
-                        p4_lines.append(f'<div class="block-p4-line"><strong>Уход:</strong> {exit_line}</div>')
+                        p4_lines.append(f'<div class="block-p4-line"><strong>Уход:</strong></div>')
+                        p4_lines.append(f'<div class="block-p4-line">{exit_anchor_line}</div>')
+                        p4_lines.append(f'<div class="block-p4-line">{exit_line}</div>')
                     p4_html = "".join(p4_lines) if p4_lines else ""
-
-                    # Ключевые выводы: преобладающий тип в начале/конце, полураспад, уход, исходы
-                    key_items = []
-                    pred_first_idx = predominant_col_by_t.get(0, -1)
-                    pred_last_idx = predominant_col_by_t.get(k_int_lc - 1, -1)
-                    if pred_first_idx >= 0 and pred_last_idx >= 0:
-                        label_first = BUCKET_LABELS[BUCKET_ORDER[pred_first_idx]]
-                        label_last = BUCKET_LABELS[BUCKET_ORDER[pred_last_idx]]
-                        key_items.append(f"В начале периода преобладает тип «{label_first}», к концу — «{label_last}».")
-                    if half_life_50_t is not None:
-                        key_items.append(
-                            f"Доля покупающих анализируемый продукт падает ниже 50% с {period_word_until} <span class=\"block-num\">{half_life_50_t + 1}</span>."
-                        )
-                    else:
-                        key_items.append(
-                            f"На всём периоде более половины когорты покупают хотя бы один анализируемый продукт."
-                        )
-                    key_items.append(f"Полный уход из анализируемого продукта: <span class=\"block-num\">{pct_exited:.1f}%</span> когорты.")
-                    key_items.append(
-                        f"К концу периода: <span class=\"block-num\">{pct_other_last_n:.1f}%</span> покупали только прочие, "
-                        f"<span class=\"block-num\">{pct_none_last_n:.1f}%</span> — без покупок."
-                    )
-                    key_findings_html = (
-                        '<ul class="block-ul block-key-ul">'
-                        + "".join([f'<li class="block-key-li">{item}</li>' for item in key_items])
-                        + "</ul>"
-                    )
 
                     lifecycle_box_css = (
                         "<style>"
@@ -2017,9 +2047,6 @@ if uploaded_file_1 and uploaded_file_2:
                         ".block-result-box p.block-p { margin: 0 0 0.5rem 0; font-size: 0.95rem; line-height: 1.45; color: #e8e8e8; }"
                         ".block-result-box .block-ul { margin: 0.25rem 0 0.5rem 1.25rem; padding-left: 0.5rem; color: #e8e8e8; }"
                         ".block-result-box .block-ul li { margin-bottom: 0.2rem; }"
-                        ".block-result-box .block-key-ul { list-style: none; margin-left: 0; padding-left: 0; }"
-                        ".block-result-box .block-key-li { margin-bottom: 0.5rem; padding-left: 1rem; position: relative; color: #e8e8e8; }"
-                        ".block-result-box .block-key-li::before { content: '▸'; position: absolute; left: 0; color: #f0a050; font-weight: bold; }"
                         "</style>"
                     )
                     # Подпись периода — над ячейкой вывода; затем ячейка без подписи внутри
@@ -2041,8 +2068,6 @@ if uploaded_file_1 and uploaded_file_2:
                         f'<div class="block-divider"></div>'
                         + f'<div class="block-lifecycle-block">'
                         + f'<span class="block-block-title">Цикл жизни клиента</span>'
-                        + f'<span class="block-section-title">Ключевые выводы</span>'
-                        + f'<p class="block-p">{key_findings_html}</p>'
                         + f'<span class="block-section-title">Якорный продукт</span>'
                         + f'<p class="block-p">{p1_anchor_body}</p>'
                     )
