@@ -325,6 +325,7 @@ def _strip_css_from_html(html: str) -> str:
 def build_excel_report(
     cohort_start: str,
     cohort_end: str,
+    anchor_product: str,
     categories: list,
     k_periods: int,
     is_months: bool,
@@ -350,6 +351,7 @@ def build_excel_report(
             ["Параметры отчёта", ""],
             ["С когорты", cohort_start],
             ["По когорту", cohort_end],
+            ["Якорный продукт когорт", anchor_product or "—"],
             ["Анализируемый продукт", ", ".join(categories) if categories else "—"],
             ["Период (недель/месяцев с когорты)", f"{k_periods} {period_word}"],
         ]
@@ -2218,6 +2220,7 @@ if uploaded_file_1 and uploaded_file_2:
                         excel_bytes = build_excel_report(
                             cohort_start=cohort_start_global,
                             cohort_end=cohort_end_global,
+                            anchor_product=category_label,
                             categories=selected_categories_global,
                             k_periods=int(k_periods_global),
                             is_months=is_months,
