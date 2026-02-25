@@ -8,7 +8,7 @@ import io
 import json
 import re
 import streamlit as st
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Font
 import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
@@ -302,6 +302,19 @@ def _html_to_plain_text(html: str) -> str:
     return text
 
 
+def _html_to_plain_fragment(html: str) -> str:
+    """Убирает HTML-теги из фрагмента, декодирует сущности, нормализует пробелы (одна строка)."""
+    if not html:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def _strip_css_from_html(html: str) -> str:
     """Удаляет блок <style>...</style>, чтобы в текст не попадали стили."""
     if not html:
@@ -320,6 +333,7 @@ def build_excel_report(
     lifecycle_clusters: list,
     lifecycle_table: pd.DataFrame,
     lifecycle_output_text: str,
+    lifecycle_output_rows: list = None,
 ) -> bytes:
     """
     Собирает полный отчёт в Excel: лист 1 — параметры и кластерный анализ (с примечаниями на кластерах),
@@ -429,9 +443,29 @@ def build_excel_report(
 
         out_start_row = table_start + (len(lifecycle_table) + 2 if lifecycle_table is not None and not lifecycle_table.empty else 0)
 
-        # Вывод на листе Цикл жизни — объединённая ячейка с переносом текста
-        if lifecycle_output_text:
-            ws2 = writer.sheets[sheet2_name]
+        # Вывод на листе Цикл жизни — структурированный по строкам или одна ячейка
+        ws2 = writer.sheets[sheet2_name]
+        if lifecycle_output_rows:
+            ws2.cell(row=out_start_row + 1, column=1, value="Вывод").font = Font(bold=True)
+            current_row = out_start_row + 2
+            for row_type, text in lifecycle_output_rows:
+                if row_type == "heading":
+                    if current_row > out_start_row + 2:
+                        ws2.cell(row=current_row, column=1, value="")
+                        current_row += 1
+                    cell = ws2.cell(row=current_row, column=1, value=text or "")
+                    cell.font = Font(bold=True)
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+                    current_row += 1
+                elif row_type == "spacer":
+                    ws2.cell(row=current_row, column=1, value="")
+                    current_row += 1
+                else:
+                    cell = ws2.cell(row=current_row, column=1, value=text or "")
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+                    current_row += 1
+            ws2.column_dimensions["A"].width = 90
+        elif lifecycle_output_text:
             ws2.cell(row=out_start_row + 1, column=1, value="Вывод")
             out_text_cell = ws2.cell(row=out_start_row + 2, column=1, value=lifecycle_output_text)
             out_text_cell.alignment = Alignment(wrap_text=True, vertical="top")
@@ -2131,6 +2165,35 @@ if uploaded_file_1 and uploaded_file_2:
                     lifecycle_table_columns = ["Период от когорты"] + [BUCKET_LABELS[b] for b in BUCKET_ORDER]
                     lifecycle_table_df = pd.DataFrame(lifecycle_table_rows, columns=lifecycle_table_columns)
 
+                    # Структурированный вывод для Excel (заголовки, строки, отступы)
+                    lifecycle_excel_rows = []
+                    lifecycle_excel_rows.append(("heading", "Якорный продукт"))
+                    lifecycle_excel_rows.append(("line", f"{period_unit_single} {week_1} — {pct_anchor_first:.1f}%"))
+                    lifecycle_excel_rows.append(("line", f"Середина ({period_unit_single} {week_mid}) — {pct_anchor_mid:.1f}%"))
+                    lifecycle_excel_rows.append(("line", f"К концу ({period_unit_single} {week_end}) — {pct_anchor_last:.1f}%"))
+                    if p2_analyzable_lines:
+                        lifecycle_excel_rows.append(("heading", "Анализируемый продукт"))
+                        for frag in p2_analyzable_lines:
+                            if "block-spacer" in frag:
+                                lifecycle_excel_rows.append(("spacer", ""))
+                            else:
+                                lifecycle_excel_rows.append(("line", _html_to_plain_fragment(frag)))
+                    lifecycle_excel_rows.append(("heading", f"Исходы к концу периода ({end_period_weeks_str})"))
+                    lifecycle_excel_rows.append(("line", _html_to_plain_fragment(p2_outcomes_html)))
+                    if p2_other_popular_html:
+                        lifecycle_excel_rows.append(("heading", "Среди прочих категорий"))
+                        lifecycle_excel_rows.append(("line", _html_to_plain_fragment(p2_other_popular_html)))
+                    lifecycle_excel_rows.append(("heading", "Полураспад анализируемого продукта"))
+                    for div in half_life_divs:
+                        if "block-spacer" in div:
+                            lifecycle_excel_rows.append(("spacer", ""))
+                        else:
+                            lifecycle_excel_rows.append(("line", _html_to_plain_fragment(div)))
+                    if p4_html:
+                        lifecycle_excel_rows.append(("heading", "Устойчивый перерыв и уход из анализируемого продукта"))
+                        for line in p4_lines:
+                            lifecycle_excel_rows.append(("line", _html_to_plain_fragment(line)))
+
                     # Формируем полный отчёт в Excel для кнопки скачивания (доступен после первого прохода по блокам)
                     cluster_summary_for_excel = st.session_state.get("report_cluster_summary")
                     cluster_comments_for_excel = st.session_state.get("report_cluster_comments", {})
@@ -2150,6 +2213,7 @@ if uploaded_file_1 and uploaded_file_2:
                             lifecycle_clusters=selected_clusters_lifecycle,
                             lifecycle_table=lifecycle_table_df,
                             lifecycle_output_text=lifecycle_text,
+                            lifecycle_output_rows=lifecycle_excel_rows,
                         )
                         st.session_state["excel_report_bytes"] = excel_bytes
                         if not had_excel_bytes:
