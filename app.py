@@ -2167,6 +2167,19 @@ if uploaded_file_1 and uploaded_file_2:
 
                     # Структурированный вывод для Excel (заголовки, строки, отступы)
                     lifecycle_excel_rows = []
+                    lifecycle_excel_rows.append(("heading", "Продажи анализируемого товара на объём якорного"))
+                    if not cohort_clients_filtered:
+                        lifecycle_excel_rows.append(("line", "В выбранных кластерах нет клиентов — коэффициент не рассчитан."))
+                    elif q_anchor_lc and q_anchor_lc > 0:
+                        lifecycle_excel_rows.append(("line", f"Объём анализируемого товара на единицу якорного товара: {r_ratio_lc:.2f}."))
+                        analyzable_names_plain = ", ".join(selected_categories_lifecycle) if len(selected_categories_lifecycle) > 1 else (selected_categories_lifecycle[0] if selected_categories_lifecycle else "")
+                        lifecycle_excel_rows.append((
+                            "line",
+                            f"При продаже {n_anchor_lc} ед. {category_label} в течении {k_periods_lifecycle} {period_word} будет продано {expected_int_lc} ед. {analyzable_names_plain}."
+                        ))
+                    else:
+                        lifecycle_excel_rows.append(("line", "В выбранных кластерах и периоде нет покупок якорного товара — коэффициент не рассчитан."))
+
                     lifecycle_excel_rows.append(("heading", "Якорный продукт"))
                     lifecycle_excel_rows.append(("line", f"{period_unit_single} {week_1} — {pct_anchor_first:.1f}%"))
                     lifecycle_excel_rows.append(("line", f"Середина ({period_unit_single} {week_mid}) — {pct_anchor_mid:.1f}%"))
