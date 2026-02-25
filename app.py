@@ -1952,7 +1952,7 @@ if uploaded_file_1 and uploaded_file_2:
                             p4_lines.append(
                                 f'<div class="block-p4-line"><strong>Устойчивый перерыв:</strong> у <span class="block-num">{pct_clients_with_sustained:.1f}%</span> когорты первый перерыв больше, чем <span class="block-num">{sustained_threshold}</span> {period_loc_gen}, в среднем с {period_loc} <span class="block-num">{avg_first_sustained_week_1based:.1f}</span>.</div>'
                             )
-                                    gap_other_top3 = "".join([
+                            gap_other_top3 = "".join([
                                 f'<li><span class="block-product">{c.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")}</span> — <span class="block-num">{pct:.1f}%</span> когорты</li>'
                                 for c, pct in top3_other_in_gap_pct
                             ]) if top3_other_in_gap_pct else ""
