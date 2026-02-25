@@ -2041,9 +2041,11 @@ if uploaded_file_1 and uploaded_file_2:
                         if len(analyzable_list) > 1:
                             for i, ep in enumerate(exit_per_product):
                                 cat_esc = analyzable_list[i].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                                exit_line_i = f"Полный уход из анализируемого продукта (<span class=\"block-product\">{cat_esc}</span>): <span class=\"block-num\">{ep[\"pct\"]:.1f}%</span> когорты"
-                                if ep["avg_week"] is not None and not np.isnan(ep["avg_week"]):
-                                    exit_line_i += f"; в среднем последняя покупка — на {period_loc} <span class=\"block-num\">{ep[\"avg_week\"] + 1:.1f}</span>."
+                                pct_i = ep["pct"]
+                                avg_week_i = ep["avg_week"]
+                                exit_line_i = f"Полный уход из анализируемого продукта (<span class=\"block-product\">{cat_esc}</span>): <span class=\"block-num\">{pct_i:.1f}%</span> когорты"
+                                if avg_week_i is not None and not np.isnan(avg_week_i):
+                                    exit_line_i += f"; в среднем последняя покупка — на {period_loc} <span class=\"block-num\">{avg_week_i + 1:.1f}</span>."
                                 else:
                                     exit_line_i += "."
                                 p4_lines.append(f'<div class="block-p4-line">{exit_line_i}</div>')
